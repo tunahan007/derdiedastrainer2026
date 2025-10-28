@@ -1,18 +1,31 @@
 {
   "name": "derdiedastrainer2025",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "dependencies": {
-    "expo": "~54.0.20",
+    "expo": "~54.0.18",
+    "expo-constants": "~18.0.10",
+    "expo-dev-client": "~6.0.16",
+    "expo-linking": "~8.0.8",
+    "expo-router": "~6.0.13",
+    "expo-speech": "~14.0.7",
+    "expo-sqlite": "~16.0.8",
     "expo-status-bar": "~3.0.8",
     "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-google-mobile-ads": "^15.8.3",
+    "react-native-paper": "^5.14.5",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-web": "^0.21.0"
   },
   "private": true
 }
