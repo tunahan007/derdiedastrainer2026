@@ -9,13 +9,15 @@ import {
   Image,
   Pressable,
   Animated,
-  Button,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
-import { AntDesign } from "@expo/vector-icons";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-
+import {
+  AntDesign,
+  FontAwesome,
+  MaterialCommunityIcons,
+} from "@expo/vector-icons";
 import { quizMainData } from "./words";
 import ABanner from "./banner";
 
@@ -49,6 +51,7 @@ const App = () => {
 
   const router = useRouter();
   const buttonAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const toggleSound = () => setSoundOn(!isSoundOn);
 
@@ -76,8 +79,45 @@ const App = () => {
     if (current.correctAnswer === answer) setScore(score + 1);
     else setFails(fails + 1);
 
-    if (currentQuestionIndex + 1 >= quizData.length) setShowModal(true);
-    else setCurrentQuestionIndex(currentQuestionIndex + 1);
+    if (currentQuestionIndex + 1 >= quizData.length) {
+      setShowModal(true);
+    } else {
+      // Fade animation
+      Animated.sequence([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentQuestionIndex > 0) {
+      // Fade animation
+      Animated.sequence([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    }
   };
 
   useEffect(() => {
@@ -86,7 +126,6 @@ const App = () => {
     } catch (error) {
       console.error("Error in speakWord:", error);
     }
-    // Trigger button animation on every word change
     buttonAnim.setValue(0);
     Animated.spring(buttonAnim, {
       toValue: 1,
@@ -109,6 +148,21 @@ const App = () => {
     return () => backHandler.remove();
   }, [showModal]);
 
+  const handleNewList = () => {
+    setQuizData(getRandomQuestions(quizMainData, wordLimit));
+    setCurrentQuestionIndex(0);
+    setScore(0);
+    setFails(0);
+    setShowModal(false);
+  };
+
+  const handleRestart = () => {
+    setCurrentQuestionIndex(0);
+    setScore(0);
+    setFails(0);
+    setShowModal(false);
+  };
+
   const animatedStyle = {
     transform: [
       {
@@ -121,156 +175,404 @@ const App = () => {
     opacity: buttonAnim,
   };
 
+  const progressPercentage =
+    ((currentQuestionIndex + 1) / quizData.length) * 100;
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={toggleSound} style={styles.soundButton}>
-          <MaterialCommunityIcons
-            name={isSoundOn ? "volume-high" : "volume-off"}
-            size={30}
-            color="white"
-          />
-        </TouchableOpacity>
-        <View style={styles.counter}>
-          <Text style={styles.counterText}>
-            {currentQuestionIndex + 1}/{quizData.length}
-          </Text>
-        </View>
-      </View>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Modern Header with Progress */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.iconButton} onPress={toggleSound}>
+            <FontAwesome
+              name={isSoundOn ? "volume-up" : "volume-off"}
+              size={24}
+              color="#6366f1"
+            />
+          </TouchableOpacity>
 
-      {/* Word Display */}
-      <View style={styles.wordContainer}>
-        <TouchableOpacity onPress={speakWord}>
-          <Image
-            source={
-              quizData[currentQuestionIndex]?.image
-                ? quizData[currentQuestionIndex]?.image
-                : require("./images/end.png")
-            }
-            style={styles.image}
-          />
-        </TouchableOpacity>
-        <Text style={styles.word}>
-          {quizData[currentQuestionIndex]?.correctAnswer}{" "}
-          {quizData[currentQuestionIndex]?.question}
-        </Text>
-        <Text style={styles.englishWord}>
-          {quizData[currentQuestionIndex]?.englishName}
-        </Text>
-      </View>
-
-      {/* Buttons */}
-      <Animated.View style={[styles.buttonRow, animatedStyle]}>
-        <Pressable
-          onPress={handleButtonClick(() => handleNext("der"))}
-          style={styles.iconButton}
-        >
-          <MaterialCommunityIcons
-            name="skip-previous-circle-outline"
-            size={66}
-            color="#007bff"
-          />
-        </Pressable>
-
-        <Pressable onPress={() => router.back()} style={styles.iconButton}>
-          <AntDesign name="home" size={56} color="#007bff" />
-        </Pressable>
-
-        <Pressable
-          onPress={handleButtonClick(() => handleNext("das"))}
-          style={styles.iconButton}
-        >
-          <MaterialCommunityIcons
-            name="skip-next-circle-outline"
-            size={66}
-            color="#007bff"
-          />
-        </Pressable>
-      </Animated.View>
-
-      {/* Banner */}
-      <View style={styles.bannerWrapper}>
-        <ABanner />
-      </View>
-
-      {/* Modal */}
-      <Modal visible={showModal} animationType="slide" transparent={true}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              Congratulations! You Finished The List!
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressText}>
+              {currentQuestionIndex + 1} / {quizData.length}
             </Text>
-            <Button title="HOME" onPress={() => router.back()} />
+            <View style={styles.progressBarBg}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  { width: `${progressPercentage}%` },
+                ]}
+              />
+            </View>
           </View>
+
+          <View style={styles.iconButton} />
         </View>
-      </Modal>
-    </View>
+
+        {/* Word Display with Animation */}
+        <Animated.View style={[styles.wordContainer, { opacity: fadeAnim }]}>
+          <TouchableOpacity
+            onPress={speakWord}
+            activeOpacity={0.8}
+            style={styles.imageContainer}
+          >
+            <Image
+              source={
+                quizData[currentQuestionIndex]?.image
+                  ? quizData[currentQuestionIndex]?.image
+                  : require("./images/end.png")
+              }
+              style={styles.image}
+            />
+            <View style={styles.speakHint}>
+              <FontAwesome name="volume-up" size={16} color="#6366f1" />
+              <Text style={styles.speakHintText}>Tap to hear</Text>
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.textCard}>
+            <Text style={styles.word}>
+              {quizData[currentQuestionIndex]?.correctAnswer}{" "}
+              {quizData[currentQuestionIndex]?.question}
+            </Text>
+            <Text style={styles.englishWord}>
+              {quizData[currentQuestionIndex]?.englishName}
+            </Text>
+          </View>
+        </Animated.View>
+
+        {/* Navigation Buttons */}
+        <Animated.View style={[styles.buttonRow, animatedStyle]}>
+          <TouchableOpacity
+            onPress={handleButtonClick(handlePrevious)}
+            style={[
+              styles.navButton,
+              currentQuestionIndex === 0 && styles.disabledButton,
+            ]}
+            activeOpacity={0.7}
+            disabled={currentQuestionIndex === 0}
+          >
+            <MaterialCommunityIcons
+              name="skip-previous"
+              size={40}
+              color={currentQuestionIndex === 0 ? "#cbd5e1" : "#6366f1"}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.homeButton}
+            activeOpacity={0.7}
+          >
+            <AntDesign name="home" size={32} color="#6366f1" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleButtonClick(() => handleNext("das"))}
+            style={styles.navButton}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name="skip-next"
+              size={40}
+              color="#6366f1"
+            />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Banner */}
+        <View style={styles.bannerWrapper}>
+          <ABanner />
+        </View>
+
+        {/* Modern Modal */}
+        <Modal visible={showModal} animationType="fade" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalIconContainer}>
+                <MaterialCommunityIcons
+                  name="check-decagram"
+                  size={80}
+                  color="#10b981"
+                />
+              </View>
+
+              <Text style={styles.modalTitle}>Liste abgeschlossen!</Text>
+
+              <Text style={styles.modalSubtitle}>
+                Du hast alle {quizData.length} Wörter durchgesehen! 🎉
+              </Text>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.primaryButton]}
+                  onPress={handleNewList}
+                >
+                  <MaterialCommunityIcons
+                    name="refresh"
+                    size={20}
+                    color="#fff"
+                  />
+                  <Text style={styles.primaryButtonText}>Neue Liste</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.secondaryButton]}
+                  onPress={handleRestart}
+                >
+                  <MaterialCommunityIcons
+                    name="replay"
+                    size={20}
+                    color="#6366f1"
+                  />
+                  <Text style={styles.secondaryButtonText}>Von vorne</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.textButton}
+                  onPress={() => router.back()}
+                >
+                  <Text style={styles.textButtonText}>Zurück zum Menü</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f0f8ff" },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+  },
+  container: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 10,
+    paddingTop: 24,
+    paddingBottom: 16,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
   },
-  soundButton: {
-    backgroundColor: "#007bff",
-    padding: 10,
-    borderRadius: 50,
-    elevation: 3,
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  counter: {
-    backgroundColor: "#007bff",
-    padding: 10,
-    borderRadius: 50,
+  progressContainer: {
+    flex: 1,
+    marginHorizontal: 16,
   },
-  counterText: { color: "white", fontWeight: "bold", fontSize: 16 },
-
+  progressText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#475569",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  progressBarBg: {
+    height: 8,
+    backgroundColor: "#e2e8f0",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#6366f1",
+    borderRadius: 4,
+  },
   wordContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 20,
   },
-  image: { width: 250, height: 250, borderRadius: 10, marginBottom: 10 },
-  word: { fontSize: 36, fontWeight: "bold", color: "#333" },
-  englishWord: { fontSize: 20, color: "#666", marginBottom: 30 },
-
+  imageContainer: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  image: {
+    width: 240,
+    height: 240,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  speakHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#eef2ff",
+    borderRadius: 20,
+  },
+  speakHintText: {
+    marginLeft: 6,
+    fontSize: 13,
+    color: "#6366f1",
+    fontWeight: "500",
+  },
+  textCard: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: 32,
+    paddingVertical: 24,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    maxWidth: "90%",
+  },
+  word: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  englishWord: {
+    fontSize: 18,
+    color: "#64748b",
+    fontWeight: "500",
+    textAlign: "center",
+  },
   buttonRow: {
     flexDirection: "row",
     justifyContent: "space-around",
-    width: "100%",
-    marginBottom: 40, // Buttons höher setzen
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
-  iconButton: {
-    backgroundColor: "#f0f8ff",
-    borderRadius: 50,
-    padding: 8,
-    elevation: 5,
+  navButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-
+  disabledButton: {
+    backgroundColor: "#f1f5f9",
+    shadowOpacity: 0.05,
+  },
+  homeButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#eef2ff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#c7d2fe",
+  },
   bannerWrapper: {
     alignItems: "center",
-    marginBottom: 60, // Banner höher setzen
+    paddingTop: 6,
+    paddingBottom: 40,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
   },
-
-  modalContainer: {
+  modalOverlay: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingHorizontal: 20,
   },
-  modalContent: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 10,
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 32,
+    width: "100%",
+    maxWidth: 400,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.25,
+    shadowRadius: 25,
+    elevation: 15,
+  },
+  modalIconContainer: {
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#1e293b",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    textAlign: "center",
+    color: "#475569",
+    marginBottom: 24,
+    fontWeight: "500",
+  },
+  modalButtons: {
+    width: "100%",
+    gap: 12,
+  },
+  modalButton: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  primaryButton: {
+    backgroundColor: "#6366f1",
+  },
+  primaryButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  secondaryButton: {
+    backgroundColor: "#eef2ff",
+    borderWidth: 2,
+    borderColor: "#c7d2fe",
+  },
+  secondaryButtonText: {
+    color: "#6366f1",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  textButton: {
+    paddingVertical: 12,
     alignItems: "center",
   },
-  modalTitle: { fontSize: 26, fontWeight: "bold", textAlign: "center" },
+  textButtonText: {
+    color: "#64748b",
+    fontSize: 15,
+    fontWeight: "600",
+  },
 });
 
 export default App;

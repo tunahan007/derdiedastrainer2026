@@ -9,21 +9,17 @@ import {
   Image,
   Pressable,
   Animated,
-  Button,
 } from "react-native";
-/* import { Button } from "react-native-paper";
- */ import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { AntDesign } from "@expo/vector-icons";
-
-import { Entypo } from "@expo/vector-icons";
-// import Icon from "react-native-vector-icons/FontAwesome";
-import { FontAwesome } from "@expo/vector-icons";
-
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  AntDesign,
+  FontAwesome,
+  MaterialCommunityIcons,
+} from "@expo/vector-icons";
 import "expo-dev-client";
-
 import { quizWordSentence } from "./words";
 import ABanner from "./banner";
 
@@ -63,13 +59,6 @@ const App = () => {
     setSoundOn(!isSoundOn);
   };
 
-  const speakMessage = () => {
-    if (isSoundOn) {
-      const message = "Hallo, wie geht es dir?";
-      Speech.speak(message, { language: "de" });
-    }
-  };
-
   const [quizData, setQuizData] = useState(
     getRandomQuestions(quizWordSentence, wordLimit)
   );
@@ -80,13 +69,13 @@ const App = () => {
   const [correctData, setCorrectData] = useState([]);
   const router = useRouter();
   const buttonAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const speakWord = () => {
     if (currentQuestionIndex < quizData.length) {
       Speech.stop();
       const greeting = quizData[currentQuestionIndex]?.germanSentence;
       const options = {
-        //voice: "de-de-x-deb-network",
         language: "de",
       };
       if (isSoundOn) {
@@ -94,24 +83,23 @@ const App = () => {
           Speech.speak(greeting, options);
         } catch (error) {
           console.error("Speech.speak : " + error);
-          // Expected output: ReferenceError: nonExistentFunction is not defined
-          // (Note: the exact output may be browser-dependent)
         }
       }
     }
   };
+
   const handleButtonClick = (handlerFunction) => {
     return () => {
       if (!isProcessingClick) {
         setIsProcessingClick(true);
-        // İlgili handler fonksiyonunu çağır
         handlerFunction();
         setTimeout(() => {
           setIsProcessingClick(false);
-        }, 1000); // 1 saniye içinde başka bir tıklamaya izin verme
+        }, 1000);
       }
     };
   };
+
   const handleNextDer = () => {
     setSelectedAnswer(null);
     setIsWrong(false);
@@ -121,6 +109,20 @@ const App = () => {
     }
 
     if (!(currentQuestionIndex === 0)) {
+      // Fade animation
+      Animated.sequence([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
 
@@ -162,6 +164,20 @@ const App = () => {
     if (currentQuestionIndex === quizData.length) {
       setShowModal(true);
     } else {
+      // Fade animation
+      Animated.sequence([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
       setTimeout(() => {
         setSelectedAnswer(null);
         setIsWrong(false);
@@ -197,6 +213,20 @@ const App = () => {
     if (currentQuestionIndex === quizData.length) {
       setShowModal(true);
     } else {
+      // Fade animation
+      Animated.sequence([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
       setTimeout(() => {
         setSelectedAnswer(null);
         setIsWrong(false);
@@ -211,7 +241,6 @@ const App = () => {
     } catch (error) {
       console.error("Error in speakWord:", error);
     }
-    // Trigger button animation on every word change
     buttonAnim.setValue(0);
     Animated.spring(buttonAnim, {
       toValue: 1,
@@ -222,20 +251,6 @@ const App = () => {
       setShowModal(true);
     }
   }, [currentQuestionIndex]);
-
-  /*   useEffect(() => {
-    try {
-      speakWord();
-    } catch (error) {
-      console.error("speakword : " + error);
-      // Expected output: ReferenceError: nonExistentFunction is not defined
-      // (Note: the exact output may be browser-dependent)
-    }
-
-    if (currentQuestionIndex === quizData.length) {
-      setShowModal(true);
-    }
-  }, [currentQuestionIndex]); */
 
   const handleModalClose = () => {
     setShowModal(false);
@@ -265,7 +280,6 @@ const App = () => {
   };
 
   const handleMenu = () => {
-    // BackHandler.exitApp(); // Uygulamayı kapatma işlemi
     router.back();
   };
 
@@ -281,7 +295,6 @@ const App = () => {
       () => {
         if (showModal) {
           handleModalClose();
-
           return true;
         }
         return false;
@@ -289,10 +302,6 @@ const App = () => {
     );
     return () => backHandler.remove();
   }, [showModal]);
-
-  function onlyUnique(value, index, array) {
-    return array.indexOf(value) === index;
-  }
 
   const animatedStyle = {
     transform: [
@@ -306,252 +315,398 @@ const App = () => {
     opacity: buttonAnim,
   };
 
+  const progressPercentage =
+    ((currentQuestionIndex + 1) / quizData.length) * 100;
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={toggleSound} style={styles.soundButton}>
-          <MaterialCommunityIcons
-            name={isSoundOn ? "volume-high" : "volume-off"}
-            size={30}
-            color="white"
-          />
-        </TouchableOpacity>
-        <View style={styles.counter}>
-          <Text style={styles.counterText}>
-            {currentQuestionIndex + 1 <= quizData.length
-              ? currentQuestionIndex + 1
-              : currentQuestionIndex}
-            /{quizData.length}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.quizContainer}>
-        <TouchableOpacity onPress={speakWord}>
-          <Image
-            source={
-              quizData[currentQuestionIndex]?.image
-                ? quizData[currentQuestionIndex]?.image
-                : require("./images/end.png") // Provide a default image source here
-            }
-            style={[styles.image]}
-          />
-        </TouchableOpacity>
-        <Text style={styles.word}>
-          {quizData[currentQuestionIndex]?.germanSentence}
-        </Text>
-        <Text style={styles.englword}>
-          {quizData[currentQuestionIndex]?.englishSentence}
-        </Text>
-      </View>
-
-      {/* Buttons */}
-      <Animated.View style={[styles.buttonRow, animatedStyle]}>
-        <Pressable
-          onPress={handleButtonClick(handleNextDer)}
-          style={styles.iconButton}
-        >
-          <MaterialCommunityIcons
-            name="skip-previous-circle-outline"
-            size={66}
-            color="#007bff"
-          />
-        </Pressable>
-
-        <Pressable onPress={() => router.back()} style={styles.iconButton}>
-          <AntDesign name="home" size={56} color="#007bff" />
-        </Pressable>
-
-        <Pressable
-          onPress={handleButtonClick(handleNextDas)}
-          style={styles.iconButton}
-        >
-          <MaterialCommunityIcons
-            name="skip-next-circle-outline"
-            size={66}
-            color="#007bff"
-          />
-        </Pressable>
-      </Animated.View>
-
-      {/* Banner */}
-      <View style={styles.bannerWrapper}>
-        <ABanner />
-      </View>
-
-      <Modal visible={showModal} animationType="slide" transparent={true}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              Congrulations You Finished The List!!!
-            </Text>
-            <View style={styles.modalScore}>
-              <Text></Text>
-            </View>
-            <Button
-              mode="outlined"
-              onPress={handleMenu}
-              title="HOME"
-              style={styles.modalButton}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Modern Header with Progress */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.iconButton} onPress={toggleSound}>
+            <FontAwesome
+              name={isSoundOn ? "volume-up" : "volume-off"}
+              size={24}
+              color="#6366f1"
             />
+          </TouchableOpacity>
+
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressText}>
+              {currentQuestionIndex + 1 <= quizData.length
+                ? currentQuestionIndex + 1
+                : currentQuestionIndex}
+              {" / "}
+              {quizData.length}
+            </Text>
+            <View style={styles.progressBarBg}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  { width: `${progressPercentage}%` },
+                ]}
+              />
+            </View>
           </View>
+
+          <View style={styles.iconButton} />
         </View>
-      </Modal>
-    </View>
+
+        {/* Content with Animation */}
+        <Animated.View style={[styles.quizContent, { opacity: fadeAnim }]}>
+          <TouchableOpacity
+            onPress={speakWord}
+            activeOpacity={0.8}
+            style={styles.imageContainer}
+          >
+            <Image
+              source={
+                quizData[currentQuestionIndex]?.image
+                  ? quizData[currentQuestionIndex]?.image
+                  : require("./images/end.png")
+              }
+              style={styles.image}
+            />
+            <View style={styles.speakHint}>
+              <FontAwesome name="volume-up" size={16} color="#6366f1" />
+              <Text style={styles.speakHintText}>Tap to hear</Text>
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.wordContainer}>
+            <Text style={styles.word}>
+              {quizData[currentQuestionIndex]?.germanSentence}
+            </Text>
+            <Text style={styles.englword}>
+              {quizData[currentQuestionIndex]?.englishSentence}
+            </Text>
+          </View>
+        </Animated.View>
+
+        {/* Navigation Buttons */}
+        <Animated.View style={[styles.buttonRow, animatedStyle]}>
+          <TouchableOpacity
+            onPress={handleButtonClick(handleNextDer)}
+            style={styles.navButton}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name="skip-previous"
+              size={40}
+              color="#6366f1"
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.homeButton}
+            activeOpacity={0.7}
+          >
+            <AntDesign name="home" size={32} color="#6366f1" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleButtonClick(handleNextDas)}
+            style={styles.navButton}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name="skip-next"
+              size={40}
+              color="#6366f1"
+            />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Banner */}
+        <View style={styles.bannerWrapper}>
+          <ABanner />
+        </View>
+
+        {/* Modern Modal */}
+        <Modal visible={showModal} animationType="fade" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalIconContainer}>
+                <MaterialCommunityIcons
+                  name="check-decagram"
+                  size={80}
+                  color="#10b981"
+                />
+              </View>
+
+              <Text style={styles.modalTitle}>Liste abgeschlossen!</Text>
+
+              <Text style={styles.modalSubtitle}>
+                Du hast alle {quizData.length} Sätze durchgearbeitet! 🎉
+              </Text>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.primaryButton]}
+                  onPress={handleNewQuiz}
+                >
+                  <MaterialCommunityIcons
+                    name="refresh"
+                    size={20}
+                    color="#fff"
+                  />
+                  <Text style={styles.primaryButtonText}>Neue Liste</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.secondaryButton]}
+                  onPress={handleModalClose}
+                >
+                  <MaterialCommunityIcons
+                    name="replay"
+                    size={20}
+                    color="#6366f1"
+                  />
+                  <Text style={styles.secondaryButtonText}>Wiederholen</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.textButton}
+                  onPress={handleMenu}
+                >
+                  <Text style={styles.textButtonText}>Zurück zum Menü</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f0f8ff" },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+  },
+  container: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 10,
+    paddingTop: 24,
+    paddingBottom: 16,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
   },
-  soundButton: {
-    backgroundColor: "#007bff",
-    padding: 10,
-    borderRadius: 50,
-    elevation: 3,
-  },
-  counter: {
-    backgroundColor: "#007bff",
-    padding: 10,
-    borderRadius: 50,
-  },
-  counterText: { color: "white", fontWeight: "bold", fontSize: 16 },
-  wordContainer: {
-    flex: 1,
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
   },
-  image: { width: 250, height: 250, borderRadius: 10, marginBottom: 10 },
-  word: { fontSize: 36, fontWeight: "bold", color: "#333" },
-  englishWord: { fontSize: 20, color: "#666", marginBottom: 30 },
-
+  progressContainer: {
+    flex: 1,
+    marginHorizontal: 16,
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#475569",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  progressBarBg: {
+    height: 8,
+    backgroundColor: "#e2e8f0",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#6366f1",
+    borderRadius: 4,
+  },
+  quizContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  imageContainer: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  image: {
+    width: 240,
+    height: 240,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  speakHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#eef2ff",
+    borderRadius: 20,
+  },
+  speakHintText: {
+    marginLeft: 6,
+    fontSize: 13,
+    color: "#6366f1",
+    fontWeight: "500",
+  },
+  wordContainer: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: 32,
+    paddingVertical: 24,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    maxWidth: "90%",
+  },
+  word: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  englword: {
+    fontSize: 16,
+    color: "#64748b",
+    fontWeight: "500",
+    textAlign: "center",
+  },
   buttonRow: {
     flexDirection: "row",
     justifyContent: "space-around",
-    width: "100%",
-    marginBottom: 40, // Buttons höher setzen
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
-  iconButton: {
-    backgroundColor: "#f0f8ff",
-    borderRadius: 50,
-    padding: 8,
-    elevation: 5,
+  navButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-
+  homeButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#eef2ff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#c7d2fe",
+  },
   bannerWrapper: {
     alignItems: "center",
-    marginBottom: 60, // Banner höher setzen
+    paddingTop: 6,
+    paddingBottom: 40,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
   },
-
-  modalWrongAnswers: {
-    marginTop: 10,
-  },
-  modalWrongAnswersTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 5,
-  },
-  modalWrongAnswerItem: {
-    fontSize: 16,
-    marginBottom: 5,
-  },
-  buttonContent: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: "5",
-    borderColor: "3498db",
-  },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#3498db",
-  },
-  sayacContainer: {
-    backgroundColor: "#007bff",
-    padding: 10,
-    borderRadius: 50,
-  },
-  sayacText: { color: "white", fontWeight: "bold", fontSize: 16 },
-  quizContainer: {
+  modalOverlay: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingHorizontal: 20,
   },
-  word: {
-    fontSize: 33,
-    fontWeight: "bold",
-  },
-  englword: {
-    fontSize: 14,
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginTop: 20,
-    marginBottom: 40,
-    width: "90%",
-  },
-  answerButton: {
-    margin: 4,
-    minHeight: 50, // Yüksekliği ayarlayabilirsiniz
-    justifyContent: "center",
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 32,
+    width: "100%",
+    maxWidth: 400,
     alignItems: "center",
-    borderWidth: 2, // Çerçeve kalınlığı
-    borderRadius: 5, // Kenar yuvarlaklığı
-    borderColor: "#007BFF", // Çerçeve rengi
-    padding: 10, // İçerik ile çerçeve arasındaki boşluk
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.25,
+    shadowRadius: 25,
+    elevation: 15,
   },
-
-  selectedAnswer: {
-    backgroundColor: "#2ecc71",
-    borderColor: "#27ae60", // Seçildiğinde çerçeve rengi
-  },
-  wrongAnswer: {
-    backgroundColor: "#e74c3c",
-    borderColor: "#c0392b", // Yanlış seçildiğinde çerçeve rengi
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalButton: {
-    margin: 4,
-    minWidth: "90%",
-    marginBottom: 10,
-    minHeight: "6%",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  modalScore: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 10,
-    alignItems: "center",
+  modalIconContainer: {
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 26,
-    fontWeight: "bold",
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#1e293b",
     textAlign: "center",
+    marginBottom: 12,
   },
-  modalScoreText: {
-    fontSize: 24,
-    fontWeight: "bold",
+  modalSubtitle: {
+    fontSize: 16,
     textAlign: "center",
-    color: "#589C26",
+    color: "#475569",
+    marginBottom: 24,
+    fontWeight: "500",
+  },
+  modalButtons: {
+    width: "100%",
+    gap: 12,
+  },
+  modalButton: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  primaryButton: {
+    backgroundColor: "#6366f1",
+  },
+  primaryButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  secondaryButton: {
+    backgroundColor: "#eef2ff",
+    borderWidth: 2,
+    borderColor: "#c7d2fe",
+  },
+  secondaryButtonText: {
+    color: "#6366f1",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  textButton: {
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  textButtonText: {
+    color: "#64748b",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
 

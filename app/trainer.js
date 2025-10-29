@@ -18,9 +18,12 @@ import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
 import "expo-dev-client";
 import { quizMainData } from "./words";
 import ABanner from "./banner";
-import { openDatabaseSync } from "expo-sqlite";
+import { openDatabaseAsync } from "expo-sqlite";
 
-const db = openDatabaseSync("appdata.db");
+let db;
+(async () => {
+  db = await openDatabaseAsync("appdata.db");
+})();
 
 const App = () => {
   const [sessionStartTime, setSessionStartTime] = useState(Date.now());
@@ -36,14 +39,72 @@ const App = () => {
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [failureData, setFailureData] = useState([]);
   const [correctData, setCorrectData] = useState([]);
+  const [wrongWordsMap, setWrongWordsMap] = useState({}); // Track wrong words frequency
   const [fadeAnim] = useState(new Animated.Value(1));
   const router = useRouter();
+
+  const goToStatistics = () => {
+    setShowModal(false);
+    router.push("/statistics");
+  };
 
   const initialQuiz = () =>
     [...quizMainData].sort(() => Math.random() - 0.5).slice(0, 20);
 
   const [quizData, setQuizData] = useState(initialQuiz());
   const [lastQuizData, setLastQuizData] = useState(quizData);
+
+  // Initialize database with new schema
+  useEffect(() => {
+    const initDB = async () => {
+      try {
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS statistics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            totalReviewed INTEGER,
+            correctAnswers INTEGER,
+            fails INTEGER,
+            progressPercent REAL,
+            sessionTime INTEGER
+          );
+        `);
+
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS wrong_words (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            word TEXT NOT NULL UNIQUE,
+            count INTEGER DEFAULT 1
+          );
+        `);
+
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS totals (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            totalReviewed INTEGER DEFAULT 0,
+            totalCorrect INTEGER DEFAULT 0,
+            totalFails INTEGER DEFAULT 0,
+            totalTime INTEGER DEFAULT 0
+          );
+        `);
+
+        // Initialize totals if not exists
+        const totalsRow = await db.getFirstAsync(
+          "SELECT * FROM totals WHERE id = 1"
+        );
+        if (!totalsRow) {
+          await db.execAsync(`
+            INSERT INTO totals (id, totalReviewed, totalCorrect, totalFails, totalTime)
+            VALUES (1, 0, 0, 0, 0);
+          `);
+        }
+      } catch (error) {
+        console.error("DB Init Error:", error);
+      }
+    };
+
+    initDB();
+  }, []);
 
   const speakWord = () => {
     Speech.stop();
@@ -78,6 +139,7 @@ const App = () => {
     const currentQuestion = quizData[currentQuestionIndex];
     let newFails = fails;
     let newScore = score;
+    const currentWord = currentQuestion.question;
 
     if (currentQuestion.correctAnswer === article) {
       newScore++;
@@ -90,6 +152,12 @@ const App = () => {
       failureData.push(
         `${article} ${currentQuestion.question} => ✔︎ ${currentQuestion.correctAnswer} ${currentQuestion.question}`
       );
+
+      // Track wrong word frequency
+      setWrongWordsMap((prev) => ({
+        ...prev,
+        [currentWord]: (prev[currentWord] || 0) + 1,
+      }));
     }
 
     if (currentQuestionIndex + 1 >= quizData.length) {
@@ -102,24 +170,34 @@ const App = () => {
       const progress = ((newScore / quizData.length) * 100).toFixed(1);
 
       try {
-        await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS statistics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            totalReviewed INTEGER,
-            correctAnswers INTEGER,
-            fails INTEGER,
-            progressPercent REAL,
-            sessionTime INTEGER
-          );
-        `);
-
+        // Insert session statistics
         await db.execAsync(`
           INSERT INTO statistics (date, totalReviewed, correctAnswers, fails, progressPercent, sessionTime)
           VALUES ('${new Date().toISOString()}', ${
           quizData.length
         }, ${newScore}, ${newFails}, ${progress}, ${sessionDuration});
         `);
+
+        // Update totals
+        await db.execAsync(`
+          UPDATE totals 
+          SET totalReviewed = totalReviewed + ${quizData.length},
+              totalCorrect = totalCorrect + ${newScore},
+              totalFails = totalFails + ${newFails},
+              totalTime = totalTime + ${sessionDuration}
+          WHERE id = 1;
+        `);
+
+        // Update wrong words
+        for (const [word, count] of Object.entries(wrongWordsMap)) {
+          await db.execAsync(`
+            INSERT INTO wrong_words (word, count) 
+            VALUES ('${word.replace(/'/g, "''")}', ${count})
+            ON CONFLICT(word) 
+            DO UPDATE SET count = count + ${count};
+          `);
+        }
+
         console.log("✅ Statistik gespeichert");
       } catch (error) {
         console.error("❌ Statistik Fehler:", error);
@@ -167,6 +245,7 @@ const App = () => {
     setLastQuizData(newQuiz);
     setFailureData([]);
     setCorrectData([]);
+    setWrongWordsMap({});
     setShowModal(false);
   };
 
@@ -182,6 +261,7 @@ const App = () => {
       setIsWrong(false);
       setFailureData([]);
       setCorrectData([]);
+      setWrongWordsMap({});
       setShowModal(false);
     } else {
       resetQuiz();
@@ -378,7 +458,7 @@ const App = () => {
                     size={20}
                     color="#fff"
                   />
-                  <Text style={styles.primaryButtonText}>Neues Quiz</Text>
+                  <Text style={styles.primaryButtonText}>NEW QUIZ</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -390,14 +470,27 @@ const App = () => {
                     size={20}
                     color="#6366f1"
                   />
-                  <Text style={styles.secondaryButtonText}>Wiederholen</Text>
+                  <Text style={styles.secondaryButtonText}>REPLAY</Text>
+                </TouchableOpacity>
+
+                {/* 🔹 Neuer Statistik-Button */}
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.secondaryButton]}
+                  onPress={goToStatistics}
+                >
+                  <MaterialCommunityIcons
+                    name="chart-bar"
+                    size={20}
+                    color="#6366f1"
+                  />
+                  <Text style={styles.secondaryButtonText}>STATISTICS</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.textButton}
                   onPress={handleMenu}
                 >
-                  <Text style={styles.textButtonText}>Zurück zum Menü</Text>
+                  <Text style={styles.textButtonText}>HOME</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -422,13 +515,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 17, // ⬅️ vorher 24 – mehr Abstand von der Android-Statusleiste
+    paddingTop: 10,
     paddingBottom: 16,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
   },
-
   iconButton: {
     width: 48,
     height: 48,
@@ -523,10 +615,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 24, // ⬅️ vorher 8 – mehr Abstand vom unteren Android-Menü
+    paddingBottom: 24,
     gap: 12,
   },
-
   answerButton: {
     flex: 1,
     height: 64,

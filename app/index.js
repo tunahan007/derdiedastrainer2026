@@ -108,7 +108,7 @@ export default function Page() {
         />
         <GridButton
           icon="line-chart"
-          title="Stats"
+          title="Test Stats"
           colors={["#2DD4BF", "#14B8A6"]}
           onPress={() => router.push("/statistics")}
         />
