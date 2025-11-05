@@ -284,12 +284,13 @@ const App = () => {
     return () => backHandler.remove();
   }, [showModal]);
 
+  // Returns a reward message in English based on the score
   const getRewardMessage = (score) => {
-    if (score === quizData.length) return "Perfekt! 🌟🌟🌟🌟🌟";
-    if (score >= 15) return "Super gemacht! 🌟🌟🌟🌟";
-    if (score >= 10) return "Gut gemacht! 🌟🌟🌟";
-    if (score >= 5) return "Ordentliche Leistung! 🌟🌟";
-    return "Nicht schlecht – weiter üben! ⭐";
+    if (score === quizData.length) return "Perfect! 🌟🌟🌟🌟🌟";
+    if (score >= 15) return "Great job! 🌟🌟🌟🌟";
+    if (score >= 10) return "Well done! 🌟🌟🌟";
+    if (score >= 5) return "Good effort! 🌟🌟";
+    return "Not bad – keep practicing! ⭐";
   };
 
   const progressPercentage =
@@ -403,7 +404,7 @@ const App = () => {
                 />
               </View>
 
-              <Text style={styles.modalTitle}>Quiz abgeschlossen!</Text>
+              <Text style={styles.modalTitle}>Quiz Completed!</Text>
 
               <View style={styles.scoreCard}>
                 <Text style={styles.modalScoreNumber}>{score}</Text>
@@ -418,7 +419,7 @@ const App = () => {
               {failureData.length > 0 && (
                 <View style={styles.modalWrongAnswers}>
                   <Text style={styles.modalWrongAnswersTitle}>
-                    Fehleranalyse
+                    Error Analysis
                   </Text>
                   {failureData.slice(0, 5).map((wrongAnswer, index) => {
                     const parts = wrongAnswer.split("=>");
