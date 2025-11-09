@@ -2,7 +2,7 @@
   "expo": {
     "name": "derdiedastrainer2025",
     "slug": "derdiedastrainer2025",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,7 +22,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.tunakhan007.derdiedastrainer",
-      "versionCode": 6
+      "versionCode": 7
     },
     "web": {
       "favicon": "./assets/favicon.png"
