@@ -4,7 +4,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Linking,
-  Image,
+  ScrollView,
   Animated,
 } from "react-native";
 import React, { useEffect, useRef } from "react";
@@ -64,7 +64,7 @@ export default function Page() {
       onPress={onPress}
     >
       <View style={styles.gridButtonContent}>
-        <FontAwesome name={icon} size={40} color="#FFFFFF" />
+        <FontAwesome name={icon} size={36} color="#FFFFFF" />
         <Text style={styles.gridButtonText}>{title}</Text>
       </View>
     </TouchableOpacity>
@@ -72,63 +72,75 @@ export default function Page() {
 
   return (
     <View style={styles.container}>
-      {/* Header with Owl */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={speakWord} style={styles.owlContainer}>
-          <Animated.View
-            style={[styles.owlPulse, { transform: [{ scale: pulseAnim }] }]}
-          />
-          <View style={styles.owlCircle}>
-            <OwlEmoji size={90} />
-          </View>
-        </TouchableOpacity>
-        <Text style={styles.title}>DER DIE DAS</Text>
-        <Text style={styles.subtitle}>GURU</Text>
-      </View>
-
-      {/* Grid of Main Buttons */}
-      <View style={styles.gridContainer}>
-        <GridButton
-          icon="book"
-          title="Power Words"
-          colors={["#60A5FA", "#3B82F6"]}
-          onPress={() => router.push("/wordlooker")}
-        />
-        <GridButton
-          icon="graduation-cap"
-          title="Test"
-          colors={["#A78BFA", "#8B5CF6"]}
-          onPress={() => router.push("/trainer")}
-        />
-        <GridButton
-          icon="comment"
-          title="Sentences"
-          colors={["#F472B6", "#EC4899"]}
-          onPress={() => router.push("/sentences")}
-        />
-        <GridButton
-          icon="line-chart"
-          title="Test Stats"
-          colors={["#2DD4BF", "#14B8A6"]}
-          onPress={() => router.push("/statistics")}
-        />
-      </View>
-
-      {/* More Apps Button */}
-      <TouchableOpacity
-        style={styles.moreAppsButton}
-        onPress={openPlayStoreApps}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
       >
-        <FontAwesome name="bolt" size={24} color="#FFFFFF" />
-        <Text style={styles.moreAppsText}>More Apps</Text>
-      </TouchableOpacity>
+        {/* Header with Owl */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={speakWord} style={styles.owlContainer}>
+            <Animated.View
+              style={[styles.owlPulse, { transform: [{ scale: pulseAnim }] }]}
+            />
+            <View style={styles.owlCircle}>
+              <OwlEmoji size={90} />
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.title}>DER DIE DAS</Text>
+          <Text style={styles.subtitle}>GURU</Text>
+        </View>
 
-      {/* Rate Button */}
-      <TouchableOpacity style={styles.rateButton} onPress={openPlayStore}>
-        <FontAwesome name="star" size={24} color="#FFFFFF" />
-        <Text style={styles.rateText}>Rate Us</Text>
-        <FontAwesome name="star" size={24} color="#FFFFFF" />
-      </TouchableOpacity>
+        {/* Grid of Main Buttons */}
+        <View style={styles.gridContainer}>
+          <GridButton
+            icon="book"
+            title="Power Words"
+            colors={["#60A5FA", "#3B82F6"]}
+            onPress={() => router.push("/wordlooker")}
+          />
+          <GridButton
+            icon="graduation-cap"
+            title="Test"
+            colors={["#A78BFA", "#8B5CF6"]}
+            onPress={() => router.push("/trainer")}
+          />
+          <GridButton
+            icon="comment"
+            title="Sentences"
+            colors={["#F472B6", "#EC4899"]}
+            onPress={() => router.push("/sentences")}
+          />
+          <GridButton
+            icon="line-chart"
+            title="Test Stats"
+            colors={["#2DD4BF", "#14B8A6"]}
+            onPress={() => router.push("/statistics")}
+          />
+          <GridButton
+            icon="book"
+            title="Top Verbs"
+            colors={["#34D399", "#10B981"]}
+            onPress={() => router.push("/verbs")}
+          />
+        </View>
+
+        {/* More Apps Button */}
+        <TouchableOpacity
+          style={styles.moreAppsButton}
+          onPress={openPlayStoreApps}
+        >
+          <FontAwesome name="bolt" size={24} color="#FFFFFF" />
+          <Text style={styles.moreAppsText}>More Apps</Text>
+        </TouchableOpacity>
+
+        {/* Rate Button */}
+        <TouchableOpacity style={styles.rateButton} onPress={openPlayStore}>
+          <FontAwesome name="star" size={24} color="#FFFFFF" />
+          <Text style={styles.rateText}>Rate Us</Text>
+          <FontAwesome name="star" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }
@@ -136,14 +148,19 @@ export default function Page() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 30,
     backgroundColor: "#E0E7FF",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 30,
   },
   header: {
     alignItems: "center",
-    marginBottom: 30,
+    marginBottom: 24,
   },
   owlContainer: {
     width: 112,
@@ -172,11 +189,6 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 12,
   },
-  owlImage: {
-    width: 90,
-    height: 90,
-    resizeMode: "contain",
-  },
   title: {
     fontSize: 24,
     fontWeight: "800",
@@ -194,13 +206,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   gridButton: {
     width: "48%",
-    aspectRatio: 1,
+    aspectRatio: 0.85,
     borderRadius: 24,
-    marginBottom: 16,
+    marginBottom: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -211,11 +223,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
+    gap: 10,
   },
   gridButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     textAlign: "center",
   },
@@ -225,9 +237,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 12,
     backgroundColor: "#FB923C",
-    paddingVertical: 18,
+    paddingVertical: 16,
     borderRadius: 24,
-    marginBottom: 16,
+    marginBottom: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
