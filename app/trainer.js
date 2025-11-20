@@ -389,122 +389,114 @@ const App = () => {
         </View>
 
         {/* Modern Modal */}
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.contentContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          <Modal visible={showModal} animationType="fade" transparent>
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalCard}>
-                <View style={styles.modalIconContainer}>
-                  <MaterialCommunityIcons
-                    name={
-                      score === quizData.length
-                        ? "trophy-award"
-                        : "check-decagram"
-                    }
-                    size={80}
-                    color={score === quizData.length ? "#fbbf24" : "#10b981"}
-                  />
-                </View>
+        <Modal visible={showModal} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalIconContainer}>
+                <MaterialCommunityIcons
+                  name={
+                    score === quizData.length
+                      ? "trophy-award"
+                      : "check-decagram"
+                  }
+                  size={80}
+                  color={score === quizData.length ? "#fbbf24" : "#10b981"}
+                />
+              </View>
 
-                <Text style={styles.modalTitle}>Quiz Completed!</Text>
+              <Text style={styles.modalTitle}>Quiz Completed!</Text>
 
-                <View style={styles.scoreCard}>
-                  <Text style={styles.modalScoreNumber}>{score}</Text>
-                  <Text style={styles.modalScoreDivider}>/</Text>
-                  <Text style={styles.modalScoreTotal}>{quizData.length}</Text>
-                </View>
+              <View style={styles.scoreCard}>
+                <Text style={styles.modalScoreNumber}>{score}</Text>
+                <Text style={styles.modalScoreDivider}>/</Text>
+                <Text style={styles.modalScoreTotal}>{quizData.length}</Text>
+              </View>
 
-                <Text style={styles.modalSubtitle}>
-                  {getRewardMessage(score)}
-                </Text>
+              <Text style={styles.modalSubtitle}>
+                {getRewardMessage(score)}
+              </Text>
 
-                {failureData.length > 0 && (
-                  <View style={styles.modalWrongAnswers}>
-                    <Text style={styles.modalWrongAnswersTitle}>
-                      Error Analysis
-                    </Text>
-                    {failureData.slice(0, 5).map((wrongAnswer, index) => {
-                      const parts = wrongAnswer.split("=>");
-                      const correctAnsw = parts[1]?.trim();
-                      const wrongAnsw = parts[0]?.trim();
-                      return (
-                        <View key={index} style={styles.wrongItem}>
-                          <View style={styles.wrongItemRow}>
-                            <MaterialCommunityIcons
-                              name="close-circle"
-                              size={16}
-                              color="#ef4444"
-                            />
-                            <Text style={styles.wrongText}>{wrongAnsw}</Text>
-                          </View>
-                          <View style={styles.correctItemRow}>
-                            <MaterialCommunityIcons
-                              name="check-circle"
-                              size={16}
-                              color="#10b981"
-                            />
-                            <Text style={styles.correctText}>
-                              {correctAnsw}
-                            </Text>
-                          </View>
+              {failureData.length > 0 && (
+                <View style={styles.modalWrongAnswers}>
+                  <Text style={styles.modalWrongAnswersTitle}>
+                    Error Analysis
+                  </Text>
+                  {failureData.slice(0, 5).map((wrongAnswer, index) => {
+                    const parts = wrongAnswer.split("=>");
+                    const correctAnsw = parts[1]?.trim();
+                    const wrongAnsw = parts[0]?.trim();
+                    return (
+                      <View key={index} style={styles.wrongItem}>
+                        <View style={styles.wrongItemRow}>
+                          <MaterialCommunityIcons
+                            name="close-circle"
+                            size={16}
+                            color="#ef4444"
+                          />
+                          <Text style={styles.wrongText}>{wrongAnsw}</Text>
                         </View>
-                      );
-                    })}
-                  </View>
-                )}
-
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.primaryButton]}
-                    onPress={resetQuiz}
-                  >
-                    <MaterialCommunityIcons
-                      name="refresh"
-                      size={20}
-                      color="#fff"
-                    />
-                    <Text style={styles.primaryButtonText}>NEW QUIZ</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.secondaryButton]}
-                    onPress={replayQuiz}
-                  >
-                    <MaterialCommunityIcons
-                      name="replay"
-                      size={20}
-                      color="#6366f1"
-                    />
-                    <Text style={styles.secondaryButtonText}>REPLAY</Text>
-                  </TouchableOpacity>
-
-                  {/* 🔹 Neuer Statistik-Button */}
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.secondaryButton]}
-                    onPress={goToStatistics}
-                  >
-                    <MaterialCommunityIcons
-                      name="chart-bar"
-                      size={20}
-                      color="#6366f1"
-                    />
-                    <Text style={styles.secondaryButtonText}>STATISTICS</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.textButton}
-                    onPress={handleMenu}
-                  >
-                    <Text style={styles.textButtonText}>HOME</Text>
-                  </TouchableOpacity>
+                        <View style={styles.correctItemRow}>
+                          <MaterialCommunityIcons
+                            name="check-circle"
+                            size={16}
+                            color="#10b981"
+                          />
+                          <Text style={styles.correctText}>{correctAnsw}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
+              )}
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.primaryButton]}
+                  onPress={resetQuiz}
+                >
+                  <MaterialCommunityIcons
+                    name="refresh"
+                    size={20}
+                    color="#fff"
+                  />
+                  <Text style={styles.primaryButtonText}>NEW QUIZ</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.secondaryButton]}
+                  onPress={replayQuiz}
+                >
+                  <MaterialCommunityIcons
+                    name="replay"
+                    size={20}
+                    color="#6366f1"
+                  />
+                  <Text style={styles.secondaryButtonText}>REPLAY</Text>
+                </TouchableOpacity>
+
+                {/* 🔹 Neuer Statistik-Button */}
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.secondaryButton]}
+                  onPress={goToStatistics}
+                >
+                  <MaterialCommunityIcons
+                    name="chart-bar"
+                    size={20}
+                    color="#6366f1"
+                  />
+                  <Text style={styles.secondaryButtonText}>STATISTICS</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.textButton}
+                  onPress={handleMenu}
+                >
+                  <Text style={styles.textButtonText}>HOME</Text>
+                </TouchableOpacity>
               </View>
             </View>
-          </Modal>
-        </ScrollView>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
