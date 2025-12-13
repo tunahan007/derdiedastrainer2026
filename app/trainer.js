@@ -407,18 +407,19 @@ const App = () => {
         fastestTime = ${newFastestTime}
       `;
 
-      const dailyBoostUpdate = dailyBoostActive ? ", dailyBoostUsed = 1" : "";
+      const dailyBoostUpdate = dailyBoostActive ? "dailyBoostUsed = 1" : "";
       const streakFreezeUpdate = streakFreezeUsed
-        ? ", streakFreeze = streakFreeze - 1"
+        ? "streakFreeze = streakFreeze - 1"
         : "";
 
+      // Combine all updates, filtering out empty strings
       const allUpdates = [
         baseUpdate,
         achievementFields,
         dailyBoostUpdate,
         streakFreezeUpdate,
       ]
-        .filter((s) => s.trim())
+        .filter((s) => s && s.trim()) // Filter out empty/null/undefined
         .join(", ");
 
       await db.execAsync(`

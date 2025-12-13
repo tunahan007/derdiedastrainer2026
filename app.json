@@ -3,30 +3,16 @@
     "name": "derdiedastrainer2025",
     "slug": "derdiedastrainer2025",
     "version": "1.0.9",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true
-    },
+
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
       "package": "com.tunakhan007.derdiedastrainer",
-      "versionCode": 10
+      "versionCode": 10,
+      "config": {
+        "googleMobileAdsAppId": "ca-app-pub-3818927199662677~9916153898"
+      }
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
+
     "plugins": [
       "expo-router",
       "expo-sqlite",
@@ -37,12 +23,6 @@
           "iosAppId": "ca-app-pub-3818927199662677~9916153898"
         }
       ]
-    ],
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "0124a575-b038-416a-9a9a-10377fbbc7e7"
-      }
-    }
+    ]
   }
 }

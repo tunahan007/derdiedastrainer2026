@@ -211,6 +211,107 @@ export default function Page() {
     }
   };
 
+  const resetDatabase = async () => {
+    Alert.alert(
+      "⚠️ Datenbank zurücksetzen",
+      "Möchtest du wirklich ALLE Daten löschen?\n\n• Alle Quiz-Ergebnisse\n• Alle Statistiken\n• Alle Achievements\n• Streak wird zurückgesetzt\n• Failed Words gelöscht",
+      [
+        {
+          text: "Abbrechen",
+          style: "cancel",
+        },
+        {
+          text: "ALLES LÖSCHEN",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              console.log("🗑️ Resetting database...");
+
+              // Delete all tables
+              await db.execAsync(`DROP TABLE IF EXISTS statistics;`);
+              await db.execAsync(`DROP TABLE IF EXISTS achievements;`);
+              await db.execAsync(`DROP TABLE IF EXISTS failed_words;`);
+
+              // Recreate tables
+              await db.execAsync(`
+              CREATE TABLE statistics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                totalReviewed INTEGER,
+                correctAnswers INTEGER,
+                fails INTEGER,
+                progressPercent REAL,
+                sessionTime INTEGER
+              );
+            `);
+
+              await db.execAsync(`
+              CREATE TABLE achievements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                userId TEXT DEFAULT 'default',
+                totalQuizzes INTEGER DEFAULT 0,
+                totalCorrect INTEGER DEFAULT 0,
+                totalQuestions INTEGER DEFAULT 0,
+                perfectScores INTEGER DEFAULT 0,
+                longestStreak INTEGER DEFAULT 0,
+                lastPlayedDate TEXT,
+                consecutiveDays INTEGER DEFAULT 0,
+                achievementFirstStar INTEGER DEFAULT 0,
+                achievementGoldenStudent INTEGER DEFAULT 0,
+                achievementDoctoralAward INTEGER DEFAULT 0,
+                achievementProfessorBadge INTEGER DEFAULT 0,
+                highestScore INTEGER DEFAULT 0,
+                fastestTime INTEGER DEFAULT 0,
+                lastDailyBoost TEXT,
+                dailyBoostUsed INTEGER DEFAULT 0,
+                streakFreeze INTEGER DEFAULT 0
+              );
+            `);
+
+              await db.execAsync(`
+              CREATE TABLE failed_words (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                word TEXT NOT NULL,
+                correctArticle TEXT NOT NULL,
+                wrongArticle TEXT NOT NULL,
+                failCount INTEGER DEFAULT 1,
+                lastFailed TEXT NOT NULL,
+                UNIQUE(word, correctArticle)
+              );
+            `);
+
+              // Insert default user
+              const today = new Date().toISOString().split("T")[0];
+              await db.execAsync(`
+              INSERT INTO achievements (userId, lastPlayedDate, lastDailyBoost)
+              VALUES ('default', '${new Date().toISOString()}', '${today}');
+            `);
+
+              console.log("✅ Database reset complete");
+
+              Alert.alert(
+                "✅ Erfolgreich",
+                "Datenbank wurde zurückgesetzt!\n\nBitte starte die App neu.",
+                [
+                  {
+                    text: "OK",
+                    onPress: () => {
+                      // Reload stats
+                      loadUserStats();
+                    },
+                  },
+                ]
+              );
+            } catch (error) {
+              console.error("Reset error:", error);
+              Alert.alert("Fehler", "Reset fehlgeschlagen: " + error.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const calculateRank = (perfectScores) => {
     let current = RANKS[0];
     let next = RANKS[1];
@@ -540,18 +641,7 @@ export default function Page() {
 
         {/* Secondary Actions */}
         <View style={styles.secondaryActions}>
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => router.push("/verbs")}
-          >
-            <MaterialCommunityIcons
-              name="book-open-variant"
-              size={20}
-              color="#007AFF"
-            />
-            <Text style={styles.secondaryButtonText}>Top Verbs</Text>
-          </TouchableOpacity>
-
+          {/*  */}
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={() => setShowAchievements(true)}
@@ -559,7 +649,6 @@ export default function Page() {
             <MaterialCommunityIcons name="medal" size={20} color="#007AFF" />
             <Text style={styles.secondaryButtonText}>Your Achievements</Text>
           </TouchableOpacity>
-
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={() => setShowLeaderboard(true)}
@@ -567,6 +656,14 @@ export default function Page() {
             <MaterialCommunityIcons name="trophy" size={20} color="#007AFF" />
             <Text style={styles.secondaryButtonText}>Your Stats</Text>
           </TouchableOpacity>
+          {/*     <TouchableOpacity style={styles.resetButton} onPress={resetDatabase}>
+            <MaterialCommunityIcons
+              name="database-remove"
+              size={20}
+              color="#ef4444"
+            />
+            <Text style={styles.resetText}>Reset Database</Text>
+          </TouchableOpacity> */}
         </View>
 
         <TouchableOpacity
@@ -647,13 +744,13 @@ export default function Page() {
                 </View>
               ))}
             </ScrollView>
-            <TouchableOpacity
+            {/*         <TouchableOpacity
               style={styles.freezeButton}
               onPress={buyStreakFreeze}
             >
               <MaterialCommunityIcons name="snowflake" size={20} color="#fff" />
               <Text style={styles.freezeButtonText}>Buy Streak Freeze</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
       </Modal>
@@ -1071,5 +1168,23 @@ const styles = StyleSheet.create({
   achievementItemProgress: {
     fontSize: 13,
     color: "#8E8E93",
+  },
+  // 4. STYLES HINZUFÜGEN (in StyleSheet.create)
+  resetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#fee2e2",
+    paddingVertical: 16,
+    borderRadius: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+  },
+  resetText: {
+    color: "#ef4444",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
