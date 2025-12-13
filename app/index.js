@@ -549,7 +549,7 @@ export default function Page() {
               size={20}
               color="#007AFF"
             />
-            <Text style={styles.secondaryButtonText}>Top 20 Verbs</Text>
+            <Text style={styles.secondaryButtonText}>Top Verbs</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
