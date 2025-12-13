@@ -11,7 +11,7 @@ export default function ABanner() {
       <BannerAd
         unitId={"ca-app-pub-3818927199662677/3221934793"}
         // TEST
-        // unitId={"ca-app-pub-3940256099942544/9214589741"}
+        //unitId={"ca-app-pub-3940256099942544/9214589741"}
         size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
       />
     </View>
