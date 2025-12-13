@@ -20,7 +20,9 @@ import LottieView from "lottie-react-native";
 import * as Speech from "expo-speech";
 import ABanner from "./banner";
 
-// German verbs with Lottie animations
+/* =========================
+   VERB LIST (30)
+========================= */
 const germanVerbs = [
   {
     id: 1,
@@ -30,7 +32,6 @@ const germanVerbs = [
     exampleEn: "I eat an apple",
     animation: require("./animation/eat.json"),
     icon: "cutlery",
-    iconFamily: "FontAwesome",
   },
   {
     id: 2,
@@ -40,7 +41,6 @@ const germanVerbs = [
     exampleEn: "I drink water",
     animation: require("./animation/drink.json"),
     icon: "glass",
-    iconFamily: "FontAwesome",
   },
   {
     id: 3,
@@ -50,7 +50,6 @@ const germanVerbs = [
     exampleEn: "I go to school",
     animation: require("./animation/go.json"),
     icon: "walk",
-    iconFamily: "FontAwesome",
   },
   {
     id: 4,
@@ -60,7 +59,6 @@ const germanVerbs = [
     exampleEn: "I speak German",
     animation: require("./animation/speak.json"),
     icon: "comments",
-    iconFamily: "FontAwesome",
   },
   {
     id: 5,
@@ -70,7 +68,6 @@ const germanVerbs = [
     exampleEn: "I swim in the pool",
     animation: require("./animation/swim.json"),
     icon: "tint",
-    iconFamily: "FontAwesome",
   },
   {
     id: 6,
@@ -80,7 +77,6 @@ const germanVerbs = [
     exampleEn: "I read a book",
     animation: require("./animation/read.json"),
     icon: "book",
-    iconFamily: "FontAwesome",
   },
   {
     id: 7,
@@ -90,7 +86,6 @@ const germanVerbs = [
     exampleEn: "I write a letter",
     animation: require("./animation/write.json"),
     icon: "pencil",
-    iconFamily: "FontAwesome",
   },
   {
     id: 8,
@@ -100,7 +95,6 @@ const germanVerbs = [
     exampleEn: "I learn German",
     animation: require("./animation/learn.json"),
     icon: "graduation-cap",
-    iconFamily: "FontAwesome",
   },
   {
     id: 9,
@@ -110,7 +104,6 @@ const germanVerbs = [
     exampleEn: "I work every day",
     animation: require("./animation/work.json"),
     icon: "briefcase",
-    iconFamily: "FontAwesome",
   },
   {
     id: 10,
@@ -120,7 +113,6 @@ const germanVerbs = [
     exampleEn: "I play football",
     animation: require("./animation/play.json"),
     icon: "futbol-o",
-    iconFamily: "FontAwesome",
   },
   {
     id: 11,
@@ -138,7 +130,6 @@ const germanVerbs = [
     example: "Ich koche Pasta",
     exampleEn: "I cook pasta",
     animation: require("./animation/cook.json"),
-
     icon: "pot-steam",
   },
   {
@@ -148,7 +139,6 @@ const germanVerbs = [
     example: "Ich fahre Auto",
     exampleEn: "I drive a car",
     animation: require("./animation/drive.json"),
-
     icon: "car",
   },
   {
@@ -158,7 +148,6 @@ const germanVerbs = [
     example: "Ich laufe im Park",
     exampleEn: "I run in the park",
     animation: require("./animation/run.json"),
-
     icon: "run",
   },
   {
@@ -168,7 +157,6 @@ const germanVerbs = [
     example: "Ich sehe einen Film",
     exampleEn: "I see a movie",
     animation: require("./animation/look.json"),
-
     icon: "eye",
   },
   {
@@ -178,7 +166,6 @@ const germanVerbs = [
     example: "Ich höre Musik",
     exampleEn: "I hear music",
     animation: require("./animation/hear.json"),
-
     icon: "music",
   },
   {
@@ -188,7 +175,6 @@ const germanVerbs = [
     example: "Ich kaufe Brot",
     exampleEn: "I buy bread",
     animation: require("./animation/buy.json"),
-
     icon: "shopping",
   },
   {
@@ -198,7 +184,6 @@ const germanVerbs = [
     example: "Ich liebe dich",
     exampleEn: "I love you",
     animation: require("./animation/love.json"),
-
     icon: "heart",
   },
   {
@@ -208,7 +193,6 @@ const germanVerbs = [
     example: "Ich denke oft",
     exampleEn: "I think often",
     animation: require("./animation/think.json"),
-
     icon: "head-lightbulb",
   },
   {
@@ -218,230 +202,163 @@ const germanVerbs = [
     example: "Ich tanze gern",
     exampleEn: "I like to dance",
     animation: require("./animation/dance.json"),
-
     icon: "dance-ballroom",
   },
   {
     id: 21,
-    german: "sagen",
-    english: "to say",
-    example: "Was hat er gesagt?",
-    exampleEn: "What did he say?",
-    animation: require("./animation/say.json"),
-    icon: "comment",
-    iconFamily: "FontAwesome",
+    german: "anrufen",
+    english: "to call",
+    example: "Ich rufe dich später an",
+    exampleEn: "I'll call you later",
+    animation: require("./animation/call.json"),
+    icon: "phone",
   },
   {
     id: 22,
-    german: "finden",
-    english: "to find",
-    example: "Ich finde mein Handy nicht",
-    exampleEn: "I can’t find my phone",
-    animation: require("./animation/find.json"),
-    icon: "search",
-    iconFamily: "FontAwesome",
+    german: "sich freuen",
+    english: "to be happy / look forward",
+    example: "Ich freue mich auf morgen",
+    exampleEn: "I look forward to tomorrow",
+    animation: require("./animation/happy.json"),
+    icon: "smile-o",
   },
   {
     id: 23,
-    german: "geben",
-    english: "to give",
-    example: "Hast du mir schon deine Handy-Nummer gegeben?",
-    exampleEn: "Did you already give me your phone number?",
-    animation: require("./animation/give.json"),
-    icon: "gift",
-    iconFamily: "FontAwesome",
+    german: "springen",
+    english: "to jump",
+    example: "Ich springe hoch",
+    exampleEn: "I jump high",
+    animation: require("./animation/jump.json"),
+    icon: "arrow-up",
   },
   {
     id: 24,
-    german: "bringen",
-    english: "to bring",
-    example: "Bringen Sie mir bitte mein Paket.",
-    exampleEn: "Bring me my package, please",
-    animation: require("./animation/bring.json"),
-    icon: "truck",
-    iconFamily: "FontAwesome",
+    german: "fliegen",
+    english: "to fly",
+    example: "Ich fliege nach Berlin",
+    exampleEn: "I fly to Berlin",
+    animation: require("./animation/fly.json"),
+    icon: "plane",
   },
   {
     id: 25,
-    german: "wissen",
-    english: "to know",
-    example: "Ich weiß es leider nicht",
-    exampleEn: "Unfortunately I don’t know",
-    animation: require("./animation/know.json"),
-    icon: "lightbulb",
-    iconFamily: "FontAwesome",
+    german: "sitzen",
+    english: "to sit",
+    example: "Ich sitze am Tisch",
+    exampleEn: "I sit at the table",
+    animation: require("./animation/sit.json"),
+    icon: "user",
   },
   {
     id: 26,
-    german: "glauben",
-    english: "to believe, to think",
-    example: "Ich glaube, ich kenne ihn",
-    exampleEn: "I think I know him",
-    animation: require("./animation/believe.json"),
-    icon: "pray",
-    iconFamily: "FontAwesome",
+    german: "winken",
+    english: "to wave",
+    example: "Ich winke dir zu",
+    exampleEn: "I wave to you",
+    animation: require("./animation/wave.json"),
+    icon: "hand-paper-o",
   },
   {
     id: 27,
-    german: "fragen",
-    english: "to ask",
-    example: "Sie haben mich nach dem Weg gefragt",
-    exampleEn: "They asked me for directions",
-    animation: require("./animation/ask.json"),
-    icon: "question",
-    iconFamily: "FontAwesome",
+    german: "klatschen",
+    english: "to clap",
+    example: "Ich klatsche laut",
+    exampleEn: "I clap loudly",
+    animation: require("./animation/clap.json"),
+    icon: "hand-rock-o",
   },
   {
     id: 28,
-    german: "helfen",
-    english: "to help",
-    example: "Hilfst du mir bei den Hausaufgaben?",
-    exampleEn: "Will you help me with my homework?",
-    animation: require("./animation/help.json"),
-    icon: "hands-helping",
-    iconFamily: "FontAwesome",
+    german: "lachen",
+    english: "to laugh",
+    example: "Ich lache viel",
+    exampleEn: "I laugh a lot",
+    animation: require("./animation/laugh.json"),
+    icon: "smile-o",
   },
   {
     id: 29,
-    german: "suchen",
-    english: "to search, to look for",
-    example: "Er sucht sein Handy",
-    exampleEn: "He’s looking for his phone",
-    animation: require("./animation/search.json"),
-    icon: "search",
-    iconFamily: "FontAwesome",
+    german: "weinen",
+    english: "to cry",
+    example: "Ich weine manchmal",
+    exampleEn: "I cry sometimes",
+    animation: require("./animation/cry.json"),
+    icon: "frown-o",
   },
   {
     id: 30,
-    german: "wohnen",
-    english: "to live",
-    example: "Wo wohnen Sie?",
-    exampleEn: "Where do you live?",
-    animation: require("./animation/live.json"),
-    icon: "house",
-    iconFamily: "FontAwesome",
+    german: "singen",
+    english: "to sing",
+    example: "Ich singe gern",
+    exampleEn: "I like to sing",
+    animation: require("./animation/sing.json"),
+    icon: "music",
   },
 ];
 
+/* =========================
+   SHUFFLE HELPER
+========================= */
+const shuffleArray = (array) => [...array].sort(() => Math.random() - 0.5);
+
+/* =========================
+   COMPONENT
+========================= */
 const GermanVerbs = () => {
   const router = useRouter();
+
+  const [sessionVerbs, setSessionVerbs] = useState([]);
   const [currentVerbIndex, setCurrentVerbIndex] = useState(0);
   const [isSoundOn, setSoundOn] = useState(true);
-  const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
   const buttonAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  const currentVerb = germanVerbs[currentVerbIndex];
+  /* ===== Init / Shuffle ===== */
+  const shuffleSession = () => {
+    const shuffled = shuffleArray(germanVerbs).slice(0, 20);
+    setSessionVerbs(shuffled);
+    setCurrentVerbIndex(0);
+  };
 
-  const toggleSound = () => setSoundOn(!isSoundOn);
+  useEffect(() => {
+    shuffleSession();
+  }, []);
+
+  const currentVerb = sessionVerbs[currentVerbIndex];
+  if (!currentVerb) return null;
 
   const speakVerb = () => {
-    if (isSoundOn && currentVerb) {
+    if (isSoundOn) {
       Speech.stop();
       Speech.speak(currentVerb.example, { language: "de" });
     }
   };
 
-  const handleButtonClick = (handler) => () => {
-    if (!isProcessingClick) {
-      setIsProcessingClick(true);
-      handler();
-      setTimeout(() => setIsProcessingClick(false), 500);
-    }
-  };
-
   const handleNext = () => {
-    if (currentVerbIndex < germanVerbs.length - 1) {
-      // Fade animation
-      Animated.sequence([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      setCurrentVerbIndex(currentVerbIndex + 1);
+    if (currentVerbIndex < sessionVerbs.length - 1) {
+      setCurrentVerbIndex((i) => i + 1);
     }
   };
 
   const handlePrevious = () => {
     if (currentVerbIndex > 0) {
-      // Fade animation
-      Animated.sequence([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      setCurrentVerbIndex(currentVerbIndex - 1);
+      setCurrentVerbIndex((i) => i - 1);
     }
   };
 
-  useEffect(() => {
-    try {
-      speakVerb();
-    } catch (error) {
-      console.error("Error in speakVerb:", error);
-    }
-    buttonAnim.setValue(0);
-    Animated.spring(buttonAnim, {
-      toValue: 1,
-      friction: 5,
-      useNativeDriver: true,
-    }).start();
-  }, [currentVerbIndex]);
-
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => {
-        if (showModal) {
-          setShowModal(false);
-          return true;
-        }
-        router.back();
-        return true;
-      }
-    );
-    return () => backHandler.remove();
-  }, [showModal]);
-
-  const animatedStyle = {
-    transform: [
-      {
-        scale: buttonAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.8, 1],
-        }),
-      },
-    ],
-    opacity: buttonAnim,
-  };
-
-  const progressPercentage =
-    ((currentVerbIndex + 1) / germanVerbs.length) * 100;
+  const progress = ((currentVerbIndex + 1) / sessionVerbs.length) * 100;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Modern Header with Progress */}
+        {/* HEADER */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.iconButton} onPress={toggleSound}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => setSoundOn(!isSoundOn)}
+          >
             <FontAwesome
               name={isSoundOn ? "volume-up" : "volume-off"}
               size={24}
@@ -451,467 +368,110 @@ const GermanVerbs = () => {
 
           <View style={styles.progressContainer}>
             <Text style={styles.progressText}>
-              {currentVerbIndex + 1} / {germanVerbs.length}
+              {currentVerbIndex + 1} / {sessionVerbs.length}
             </Text>
             <View style={styles.progressBarBg}>
               <View
-                style={[
-                  styles.progressBarFill,
-                  { width: `${progressPercentage}%` },
-                ]}
+                style={[styles.progressBarFill, { width: `${progress}%` }]}
               />
             </View>
           </View>
 
-          <View style={styles.iconButton} />
+          {/* 🔁 Shuffle Button */}
+          <TouchableOpacity style={styles.iconButton} onPress={shuffleSession}>
+            <MaterialCommunityIcons
+              name="shuffle-variant"
+              size={24}
+              color="#6366f1"
+            />
+          </TouchableOpacity>
         </View>
-        {/* Verb Display with Animation */}
-        <Animated.View style={[styles.verbContainer, { opacity: fadeAnim }]}>
-          <TouchableOpacity
-            onPress={() => setShowModal(true)}
-            activeOpacity={0.8}
-            style={styles.animationContainer}
-          >
-            <View style={styles.lottieWrapper}>
-              {currentVerb.animation ? (
-                <LottieView
-                  source={
-                    typeof currentVerb.animation === "string"
-                      ? { uri: currentVerb.animation }
-                      : currentVerb.animation
-                  }
-                  autoPlay
-                  loop
-                  style={styles.lottie}
-                />
-              ) : (
-                <FontAwesome
-                  name={currentVerb.icon}
-                  size={100}
-                  color="#6366f1"
-                />
-              )}
-            </View>
-            <View style={styles.speakHint}>
-              <FontAwesome name="info-circle" size={16} color="#6366f1" />
-              <Text style={styles.speakHintText}>Tap for details</Text>
-            </View>
+
+        {/* CONTENT */}
+        <View style={styles.verbContainer}>
+          <TouchableOpacity onPress={() => setShowModal(true)}>
+            <LottieView
+              source={currentVerb.animation}
+              autoPlay
+              loop
+              style={{ width: 240, height: 240 }}
+            />
           </TouchableOpacity>
 
-          {/* Verb Card - Simple */}
           <View style={styles.textCard}>
             <Text style={styles.verbGerman}>{currentVerb.german}</Text>
             <Text style={styles.verbEnglish}>{currentVerb.english}</Text>
           </View>
-        </Animated.View>
-        {/* Navigation Buttons */}
-        <Animated.View style={[styles.buttonRow, animatedStyle]}>
-          <TouchableOpacity
-            onPress={handleButtonClick(handlePrevious)}
-            style={[
-              styles.navButton,
-              currentVerbIndex === 0 && styles.disabledButton,
-            ]}
-            activeOpacity={0.7}
-            disabled={currentVerbIndex === 0}
-          >
+        </View>
+
+        {/* NAV */}
+        <View style={styles.buttonRow}>
+          <TouchableOpacity onPress={handlePrevious}>
             <MaterialCommunityIcons
               name="skip-previous"
               size={40}
-              color={currentVerbIndex === 0 ? "#cbd5e1" : "#6366f1"}
+              color="#6366f1"
             />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.homeButton}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity onPress={() => router.back()}>
             <AntDesign name="home" size={32} color="#6366f1" />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={handleButtonClick(handleNext)}
-            style={[
-              styles.navButton,
-              currentVerbIndex === germanVerbs.length - 1 &&
-                styles.disabledButton,
-            ]}
-            activeOpacity={0.7}
-            disabled={currentVerbIndex === germanVerbs.length - 1}
-          >
+          <TouchableOpacity onPress={handleNext}>
             <MaterialCommunityIcons
               name="skip-next"
               size={40}
-              color={
-                currentVerbIndex === germanVerbs.length - 1
-                  ? "#cbd5e1"
-                  : "#6366f1"
-              }
+              color="#6366f1"
             />
           </TouchableOpacity>
-        </Animated.View>
-        {/* Banner */}
-        <View style={styles.bannerWrapper}>
-          <ABanner />
         </View>
-        {/* Detail Modal */}
-        <Modal visible={showModal} animationType="fade" transparent={true}>
-          <View style={styles.modalOverlay}>
-            <TouchableOpacity
-              style={styles.modalBackground}
-              activeOpacity={1}
-              onPress={() => setShowModal(false)}
-            />
-            <View style={styles.modalCard}>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setShowModal(false)}
-              >
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
 
-              <View style={styles.modalIconContainer}>
-                {currentVerb.animation ? (
-                  <LottieView
-                    source={
-                      typeof currentVerb.animation === "string"
-                        ? { uri: currentVerb.animation }
-                        : currentVerb.animation
-                    }
-                    autoPlay
-                    loop
-                    style={styles.modalLottie}
-                  />
-                ) : (
-                  <FontAwesome
-                    name={currentVerb.icon}
-                    size={80}
-                    color="#6366f1"
-                  />
-                )}
-              </View>
-
-              <Text style={styles.modalVerbGerman}>{currentVerb.german}</Text>
-              <Text style={styles.modalVerbEnglish}>{currentVerb.english}</Text>
-
-              <View style={styles.modalExampleContainer}>
-                <Text style={styles.exampleLabel}>Beispiel:</Text>
-                <TouchableOpacity
-                  onPress={speakVerb}
-                  style={styles.exampleTextContainer}
-                >
-                  <Text style={styles.exampleGerman}>
-                    {currentVerb.example}
-                  </Text>
-                  <FontAwesome name="volume-up" size={20} color="#6366f1" />
-                </TouchableOpacity>
-                <Text style={styles.exampleEnglish}>
-                  {currentVerb.exampleEn}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.practiceButton}
-                onPress={() => {
-                  speakVerb();
-                  setShowModal(false);
-                }}
-              >
-                <FontAwesome name="volume-up" size={20} color="#fff" />
-                <Text style={styles.practiceButtonText}>
-                  Anhören & Schließen
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+        <ABanner />
       </View>
     </SafeAreaView>
   );
 };
 
+export default GermanVerbs;
+
+/* =========================
+   STYLES (gekürzt)
+========================= */
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
+  safeArea: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { flex: 1 },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    padding: 20,
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
   },
   iconButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#f1f5f9",
-    justifyContent: "center",
+    backgroundColor: "#eef2ff",
     alignItems: "center",
+    justifyContent: "center",
   },
-  progressContainer: {
-    flex: 1,
-    marginHorizontal: 16,
-  },
-  progressText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#475569",
-    textAlign: "center",
-    marginBottom: 8,
-  },
+  progressContainer: { flex: 1, marginHorizontal: 16 },
+  progressText: { textAlign: "center", marginBottom: 6 },
   progressBarBg: {
     height: 8,
     backgroundColor: "#e2e8f0",
     borderRadius: 4,
-    overflow: "hidden",
   },
   progressBarFill: {
     height: "100%",
     backgroundColor: "#6366f1",
-    borderRadius: 4,
   },
-  verbContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  animationContainer: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  lottieWrapper: {
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    backgroundColor: "#eef2ff",
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  lottie: {
-    width: 280,
-    height: 280,
-  },
-  speakHint: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: "#eef2ff",
-    borderRadius: 20,
-  },
-  speakHintText: {
-    marginLeft: 6,
-    fontSize: 13,
-    color: "#6366f1",
-    fontWeight: "500",
-  },
-  textCard: {
-    alignItems: "center",
-    backgroundColor: "#fff",
-    paddingHorizontal: 32,
-    paddingVertical: 24,
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    maxWidth: "90%",
-    width: "100%",
-  },
-  verbGerman: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#1e293b",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  verbEnglish: {
-    fontSize: 20,
-    color: "#64748b",
-    fontWeight: "500",
-    textAlign: "center",
-  },
+  verbContainer: { flex: 1, alignItems: "center" },
+  textCard: { alignItems: "center", marginTop: 20 },
+  verbGerman: { fontSize: 36, fontWeight: "800" },
+  verbEnglish: { fontSize: 18, color: "#64748b" },
   buttonRow: {
     flexDirection: "row",
     justifyContent: "space-around",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  navButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  disabledButton: {
-    backgroundColor: "#f1f5f9",
-    shadowOpacity: 0.05,
-  },
-  homeButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#eef2ff",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#c7d2fe",
-  },
-  bannerWrapper: {
-    alignItems: "center",
-    paddingTop: 6,
-    paddingBottom: 20,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  modalBackground: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-  },
-  modalCard: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 32,
-    width: "100%",
-    maxWidth: 400,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.25,
-    shadowRadius: 25,
-    elevation: 15,
-  },
-  closeButton: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#f1f5f9",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 10,
-  },
-  modalIconContainer: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: "#eef2ff",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 24,
-    overflow: "hidden",
-  },
-  modalLottie: {
-    width: 180,
-    height: 180,
-  },
-  modalVerbGerman: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#1e293b",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  modalVerbEnglish: {
-    fontSize: 20,
-    color: "#64748b",
-    fontWeight: "500",
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  modalExampleContainer: {
-    width: "100%",
-    backgroundColor: "#f8fafc",
-    borderRadius: 16,
     padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  exampleLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#6366f1",
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  exampleTextContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  exampleGerman: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1e293b",
-    flex: 1,
-  },
-  exampleEnglish: {
-    fontSize: 15,
-    color: "#64748b",
-    fontStyle: "italic",
-    textAlign: "center",
-  },
-  practiceButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#6366f1",
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    gap: 8,
-    width: "100%",
-  },
-  practiceButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
   },
 });
-
-export default GermanVerbs;

@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   Animated,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -18,12 +19,16 @@ import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
 import "expo-dev-client";
 import { quizMainData } from "./words";
 import ABanner from "./banner";
-import { openDatabaseAsync } from "expo-sqlite";
+import { openDatabaseSync } from "expo-sqlite";
 
-let db;
-(async () => {
-  db = await openDatabaseAsync("appdata.db");
-})();
+const db = openDatabaseSync("appdata.db");
+
+const ACHIEVEMENTS = [
+  { id: "achievementFirstStar", requirement: 1 },
+  { id: "achievementGoldenStudent", requirement: 5 },
+  { id: "achievementDoctoralAward", requirement: 10 },
+  { id: "achievementProfessorBadge", requirement: 20 },
+];
 
 const App = () => {
   const [sessionStartTime, setSessionStartTime] = useState(Date.now());
@@ -39,14 +44,9 @@ const App = () => {
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [failureData, setFailureData] = useState([]);
   const [correctData, setCorrectData] = useState([]);
-  const [wrongWordsMap, setWrongWordsMap] = useState({}); // Track wrong words frequency
   const [fadeAnim] = useState(new Animated.Value(1));
+  const [dailyBoostActive, setDailyBoostActive] = useState(false);
   const router = useRouter();
-
-  const goToStatistics = () => {
-    setShowModal(false);
-    router.push("/statistics");
-  };
 
   const initialQuiz = () =>
     [...quizMainData].sort(() => Math.random() - 0.5).slice(0, 20);
@@ -54,57 +54,131 @@ const App = () => {
   const [quizData, setQuizData] = useState(initialQuiz());
   const [lastQuizData, setLastQuizData] = useState(quizData);
 
-  // Initialize database with new schema
+  // Check for daily boost on mount
   useEffect(() => {
-    const initDB = async () => {
-      try {
-        await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS statistics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            totalReviewed INTEGER,
-            correctAnswers INTEGER,
-            fails INTEGER,
-            progressPercent REAL,
-            sessionTime INTEGER
-          );
-        `);
+    checkDailyBoost();
+  }, []);
 
-        await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS wrong_words (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            word TEXT NOT NULL UNIQUE,
-            count INTEGER DEFAULT 1
-          );
-        `);
+  const checkDailyBoost = async () => {
+    try {
+      await ensureAchievementsTable();
+      const row = await db.getFirstAsync(
+        "SELECT dailyBoostUsed, lastDailyBoost FROM achievements WHERE userId='default'"
+      );
+      if (row) {
+        const today = new Date().toISOString().split("T")[0];
+        if (row.lastDailyBoost === today && row.dailyBoostUsed === 0) {
+          setDailyBoostActive(true);
+        }
+      }
+    } catch (error) {
+      console.error("checkDailyBoost error:", error);
+    }
+  };
 
+  const ensureAchievementsTable = async () => {
+    try {
+      const tableInfo = await db.getAllAsync(`PRAGMA table_info(achievements)`);
+
+      if (tableInfo.length === 0) {
         await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS totals (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            totalReviewed INTEGER DEFAULT 0,
+          CREATE TABLE achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            userId TEXT DEFAULT 'default',
+            totalQuizzes INTEGER DEFAULT 0,
             totalCorrect INTEGER DEFAULT 0,
-            totalFails INTEGER DEFAULT 0,
-            totalTime INTEGER DEFAULT 0
+            totalQuestions INTEGER DEFAULT 0,
+            perfectScores INTEGER DEFAULT 0,
+            longestStreak INTEGER DEFAULT 0,
+            lastPlayedDate TEXT,
+            consecutiveDays INTEGER DEFAULT 0,
+            achievementFirstStar INTEGER DEFAULT 0,
+            achievementGoldenStudent INTEGER DEFAULT 0,
+            achievementDoctoralAward INTEGER DEFAULT 0,
+            achievementProfessorBadge INTEGER DEFAULT 0,
+            highestScore INTEGER DEFAULT 0,
+            fastestTime INTEGER DEFAULT 0,
+            lastDailyBoost TEXT,
+            dailyBoostUsed INTEGER DEFAULT 0,
+            streakFreeze INTEGER DEFAULT 0
           );
         `);
 
-        // Initialize totals if not exists
-        const totalsRow = await db.getFirstAsync(
-          "SELECT * FROM totals WHERE id = 1"
+        const today = new Date().toISOString().split("T")[0];
+        await db.execAsync(`
+          INSERT INTO achievements (userId, lastPlayedDate, lastDailyBoost)
+          VALUES ('default', '${new Date().toISOString()}', '${today}');
+        `);
+      } else {
+        const hasNewColumns = tableInfo.some(
+          (col) => col.name === "dailyBoostUsed"
         );
-        if (!totalsRow) {
+
+        if (!hasNewColumns) {
           await db.execAsync(`
-            INSERT INTO totals (id, totalReviewed, totalCorrect, totalFails, totalTime)
-            VALUES (1, 0, 0, 0, 0);
+            ALTER TABLE achievements ADD COLUMN lastDailyBoost TEXT;
+            ALTER TABLE achievements ADD COLUMN dailyBoostUsed INTEGER DEFAULT 0;
+            ALTER TABLE achievements ADD COLUMN streakFreeze INTEGER DEFAULT 0;
+            ALTER TABLE achievements ADD COLUMN highestScore INTEGER DEFAULT 0;
+            ALTER TABLE achievements ADD COLUMN fastestTime INTEGER DEFAULT 0;
           `);
         }
-      } catch (error) {
-        console.error("DB Init Error:", error);
       }
-    };
+    } catch (error) {
+      console.error("ensureAchievementsTable error:", error);
+    }
+  };
 
-    initDB();
-  }, []);
+  const ensureFailedWordsTable = async () => {
+    try {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS failed_words (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          word TEXT NOT NULL,
+          correctArticle TEXT NOT NULL,
+          wrongArticle TEXT NOT NULL,
+          failCount INTEGER DEFAULT 1,
+          lastFailed TEXT NOT NULL,
+          UNIQUE(word, correctArticle)
+        );
+      `);
+    } catch (error) {
+      console.error("ensureFailedWordsTable error:", error);
+    }
+  };
+
+  const saveFailedWord = async (word, correctArticle, wrongArticle) => {
+    try {
+      await ensureFailedWordsTable();
+
+      // Check if word already exists
+      const existing = await db.getFirstAsync(
+        `SELECT * FROM failed_words WHERE word = ? AND correctArticle = ?`,
+        [word, correctArticle]
+      );
+
+      if (existing) {
+        // Update fail count
+        await db.runAsync(
+          `UPDATE failed_words 
+           SET failCount = failCount + 1, 
+               wrongArticle = ?,
+               lastFailed = ?
+           WHERE word = ? AND correctArticle = ?`,
+          [wrongArticle, new Date().toISOString(), word, correctArticle]
+        );
+      } else {
+        // Insert new failed word
+        await db.runAsync(
+          `INSERT INTO failed_words (word, correctArticle, wrongArticle, lastFailed)
+           VALUES (?, ?, ?, ?)`,
+          [word, correctArticle, wrongArticle, new Date().toISOString()]
+        );
+      }
+    } catch (error) {
+      console.error("saveFailedWord error:", error);
+    }
+  };
 
   const speakWord = () => {
     Speech.stop();
@@ -139,7 +213,6 @@ const App = () => {
     const currentQuestion = quizData[currentQuestionIndex];
     let newFails = fails;
     let newScore = score;
-    const currentWord = currentQuestion.question;
 
     if (currentQuestion.correctAnswer === article) {
       newScore++;
@@ -149,15 +222,17 @@ const App = () => {
       newFails++;
       setFails(newFails);
       setIsWrong(true);
-      failureData.push(
-        `${article} ${currentQuestion.question} => ✔︎ ${currentQuestion.correctAnswer} ${currentQuestion.question}`
+
+      // Save failed word to database
+      await saveFailedWord(
+        currentQuestion.question,
+        currentQuestion.correctAnswer,
+        article
       );
 
-      // Track wrong word frequency
-      setWrongWordsMap((prev) => ({
-        ...prev,
-        [currentWord]: (prev[currentWord] || 0) + 1,
-      }));
+      failureData.push(
+        `${article} ${currentQuestion.question} => ✔️ ${currentQuestion.correctAnswer} ${currentQuestion.question}`
+      );
     }
 
     if (currentQuestionIndex + 1 >= quizData.length) {
@@ -168,39 +243,40 @@ const App = () => {
         (sessionEndTime - sessionStartTime) / 1000
       );
       const progress = ((newScore / quizData.length) * 100).toFixed(1);
+      const isPerfect = newScore === quizData.length;
 
       try {
-        // Insert session statistics
+        // 1. Save to statistics table (session history)
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS statistics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            totalReviewed INTEGER,
+            correctAnswers INTEGER,
+            fails INTEGER,
+            progressPercent REAL,
+            sessionTime INTEGER
+          );
+        `);
+
         await db.execAsync(`
           INSERT INTO statistics (date, totalReviewed, correctAnswers, fails, progressPercent, sessionTime)
           VALUES ('${new Date().toISOString()}', ${
           quizData.length
         }, ${newScore}, ${newFails}, ${progress}, ${sessionDuration});
         `);
+        console.log("✅ Statistics saved");
 
-        // Update totals
-        await db.execAsync(`
-          UPDATE totals 
-          SET totalReviewed = totalReviewed + ${quizData.length},
-              totalCorrect = totalCorrect + ${newScore},
-              totalFails = totalFails + ${newFails},
-              totalTime = totalTime + ${sessionDuration}
-          WHERE id = 1;
-        `);
-
-        // Update wrong words
-        for (const [word, count] of Object.entries(wrongWordsMap)) {
-          await db.execAsync(`
-            INSERT INTO wrong_words (word, count) 
-            VALUES ('${word.replace(/'/g, "''")}', ${count})
-            ON CONFLICT(word) 
-            DO UPDATE SET count = count + ${count};
-          `);
-        }
-
-        console.log("✅ Statistik gespeichert");
+        // 2. Update achievements table
+        await updateAchievements(
+          quizData.length,
+          newScore,
+          newFails,
+          sessionDuration,
+          isPerfect
+        );
       } catch (error) {
-        console.error("❌ Statistik Fehler:", error);
+        console.error("❌ Save error:", error);
       }
     } else {
       Animated.sequence([
@@ -221,6 +297,145 @@ const App = () => {
         setIsWrong(false);
         setCurrentQuestionIndex((prev) => prev + 1);
       }, 300);
+    }
+  };
+
+  const updateAchievements = async (
+    totalReviewed,
+    correctAnswers,
+    failsCount,
+    sessionTime,
+    isPerfect
+  ) => {
+    try {
+      await ensureAchievementsTable();
+
+      const currentAch = await db.getFirstAsync(
+        "SELECT * FROM achievements WHERE userId='default'"
+      );
+
+      if (!currentAch) {
+        console.error("No achievements record found");
+        return;
+      }
+
+      // Calculate new values
+      const newTotalQuizzes = (currentAch.totalQuizzes || 0) + 1;
+      const newTotalCorrect = (currentAch.totalCorrect || 0) + correctAnswers;
+      const newTotalQuestions =
+        (currentAch.totalQuestions || 0) + totalReviewed;
+      const newPerfectScores =
+        (currentAch.perfectScores || 0) + (isPerfect ? 1 : 0);
+
+      // Update highest score
+      const newHighestScore = Math.max(
+        currentAch.highestScore || 0,
+        correctAnswers
+      );
+
+      // Update fastest time (only if score > 0)
+      let newFastestTime = currentAch.fastestTime || 0;
+      if (correctAnswers > 0) {
+        if (newFastestTime === 0 || sessionTime < newFastestTime) {
+          newFastestTime = sessionTime;
+        }
+      }
+
+      // Update streak
+      const today = new Date().toISOString().split("T")[0];
+      const lastPlayed = currentAch.lastPlayedDate
+        ? new Date(currentAch.lastPlayedDate).toISOString().split("T")[0]
+        : null;
+
+      let newConsecutiveDays = currentAch.consecutiveDays || 0;
+      let newLongestStreak = currentAch.longestStreak || 0;
+      let streakFreezeUsed = false;
+
+      if (!lastPlayed) {
+        newConsecutiveDays = 1;
+      } else {
+        const lastPlayedDate = new Date(lastPlayed);
+        const todayDate = new Date(today);
+        const diffTime = todayDate - lastPlayedDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 0) {
+          // Same day - no change
+        } else if (diffDays === 1) {
+          // Consecutive day
+          newConsecutiveDays++;
+        } else if (diffDays > 1) {
+          // Streak broken - check for freeze
+          if ((currentAch.streakFreeze || 0) > 0) {
+            // Use streak freeze
+            streakFreezeUsed = true;
+            console.log("🧊 Streak freeze used!");
+          } else {
+            // Reset streak
+            newConsecutiveDays = 1;
+          }
+        }
+      }
+
+      if (newConsecutiveDays > newLongestStreak) {
+        newLongestStreak = newConsecutiveDays;
+      }
+
+      // Check and unlock achievements
+      const achievementUpdates = {};
+      ACHIEVEMENTS.forEach((ach) => {
+        if (newPerfectScores >= ach.requirement && currentAch[ach.id] === 0) {
+          achievementUpdates[ach.id] = 1;
+          console.log(`🎉 Achievement unlocked: ${ach.id}`);
+        }
+      });
+
+      // Build SQL update
+      const achievementFields = Object.entries(achievementUpdates)
+        .map(([key, value]) => `${key} = ${value}`)
+        .join(", ");
+
+      const baseUpdate = `
+        totalQuizzes = ${newTotalQuizzes},
+        totalCorrect = ${newTotalCorrect},
+        totalQuestions = ${newTotalQuestions},
+        perfectScores = ${newPerfectScores},
+        consecutiveDays = ${newConsecutiveDays},
+        longestStreak = ${newLongestStreak},
+        lastPlayedDate = '${new Date().toISOString()}',
+        highestScore = ${newHighestScore},
+        fastestTime = ${newFastestTime}
+      `;
+
+      const dailyBoostUpdate = dailyBoostActive ? ", dailyBoostUsed = 1" : "";
+      const streakFreezeUpdate = streakFreezeUsed
+        ? ", streakFreeze = streakFreeze - 1"
+        : "";
+
+      const allUpdates = [
+        baseUpdate,
+        achievementFields,
+        dailyBoostUpdate,
+        streakFreezeUpdate,
+      ]
+        .filter((s) => s.trim())
+        .join(", ");
+
+      await db.execAsync(`
+        UPDATE achievements
+        SET ${allUpdates}
+        WHERE userId='default'
+      `);
+
+      console.log("✅ Achievements updated");
+      console.log(`📊 Quiz: ${newTotalQuizzes}, Perfect: ${newPerfectScores}`);
+      console.log(`🔥 Streak: ${newConsecutiveDays} days`);
+
+      if (dailyBoostActive) {
+        console.log("🚀 Daily boost used!");
+      }
+    } catch (error) {
+      console.error("❌ updateAchievements error:", error);
     }
   };
 
@@ -245,27 +460,7 @@ const App = () => {
     setLastQuizData(newQuiz);
     setFailureData([]);
     setCorrectData([]);
-    setWrongWordsMap({});
     setShowModal(false);
-  };
-
-  const replayQuiz = () => {
-    if (lastQuizData?.length > 0) {
-      setQuizData(lastQuizData);
-      setSessionStartTime(Date.now());
-      setCount(0);
-      setScore(0);
-      setFails(0);
-      setCurrentQuestionIndex(0);
-      setSelectedAnswer(null);
-      setIsWrong(false);
-      setFailureData([]);
-      setCorrectData([]);
-      setWrongWordsMap({});
-      setShowModal(false);
-    } else {
-      resetQuiz();
-    }
   };
 
   const handleMenu = () => router.back();
@@ -284,13 +479,12 @@ const App = () => {
     return () => backHandler.remove();
   }, [showModal]);
 
-  // Returns a reward message in English based on the score
   const getRewardMessage = (score) => {
-    if (score === quizData.length) return "Perfect! 🌟🌟🌟🌟🌟";
-    if (score >= 15) return "Great job! 🌟🌟🌟🌟";
-    if (score >= 10) return "Well done! 🌟🌟🌟";
-    if (score >= 5) return "Good effort! 🌟🌟";
-    return "Not bad – keep practicing! ⭐";
+    if (score === quizData.length) return "Perfekt! 🌟🌟🌟🌟🌟";
+    if (score >= 15) return "Super gemacht! 🌟🌟🌟🌟";
+    if (score >= 10) return "Gut gemacht! 🌟🌟🌟";
+    if (score >= 5) return "Ordentliche Leistung! 🌟🌟";
+    return "Nicht schlecht – weiter üben! ⭐";
   };
 
   const progressPercentage =
@@ -310,9 +504,21 @@ const App = () => {
           </TouchableOpacity>
 
           <View style={styles.progressContainer}>
-            <Text style={styles.progressText}>
-              {currentQuestionIndex + 1} / {quizData.length}
-            </Text>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressText}>
+                {currentQuestionIndex + 1} / {quizData.length}
+              </Text>
+              {dailyBoostActive && (
+                <View style={styles.boostBadge}>
+                  <MaterialCommunityIcons
+                    name="flash"
+                    size={12}
+                    color="#fbbf24"
+                  />
+                  <Text style={styles.boostText}>2x</Text>
+                </View>
+              )}
+            </View>
             <View style={styles.progressBarBg}>
               <View
                 style={[
@@ -327,6 +533,16 @@ const App = () => {
             <MaterialCommunityIcons name="home" size={24} color="#6366f1" />
           </TouchableOpacity>
         </View>
+
+        {/* Daily Boost Indicator */}
+        {dailyBoostActive && (
+          <View style={styles.dailyBoostBanner}>
+            <MaterialCommunityIcons name="flash" size={16} color="#fbbf24" />
+            <Text style={styles.dailyBoostText}>
+              Daily Boost Active! First quiz today 🚀
+            </Text>
+          </View>
+        )}
 
         {/* Quiz Content with Animation */}
         <Animated.View style={[styles.quizContent, { opacity: fadeAnim }]}>
@@ -392,108 +608,91 @@ const App = () => {
         <Modal visible={showModal} animationType="fade" transparent>
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
-              <View style={styles.modalIconContainer}>
-                <MaterialCommunityIcons
-                  name={
-                    score === quizData.length
-                      ? "trophy-award"
-                      : "check-decagram"
-                  }
-                  size={80}
-                  color={score === quizData.length ? "#fbbf24" : "#10b981"}
-                />
-              </View>
-
-              <Text style={styles.modalTitle}>Quiz Completed!</Text>
-
-              <View style={styles.scoreCard}>
-                <Text style={styles.modalScoreNumber}>{score}</Text>
-                <Text style={styles.modalScoreDivider}>/</Text>
-                <Text style={styles.modalScoreTotal}>{quizData.length}</Text>
-              </View>
-
-              <Text style={styles.modalSubtitle}>
-                {getRewardMessage(score)}
-              </Text>
-
-              {failureData.length > 0 && (
-                <View style={styles.modalWrongAnswers}>
-                  <Text style={styles.modalWrongAnswersTitle}>
-                    Error Analysis
-                  </Text>
-                  {failureData.slice(0, 5).map((wrongAnswer, index) => {
-                    const parts = wrongAnswer.split("=>");
-                    const correctAnsw = parts[1]?.trim();
-                    const wrongAnsw = parts[0]?.trim();
-                    return (
-                      <View key={index} style={styles.wrongItem}>
-                        <View style={styles.wrongItemRow}>
-                          <MaterialCommunityIcons
-                            name="close-circle"
-                            size={16}
-                            color="#ef4444"
-                          />
-                          <Text style={styles.wrongText}>{wrongAnsw}</Text>
-                        </View>
-                        <View style={styles.correctItemRow}>
-                          <MaterialCommunityIcons
-                            name="check-circle"
-                            size={16}
-                            color="#10b981"
-                          />
-                          <Text style={styles.correctText}>{correctAnsw}</Text>
-                        </View>
-                      </View>
-                    );
-                  })}
+              <ScrollView
+                style={styles.modalScrollView}
+                contentContainerStyle={styles.modalScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.modalIconContainer}>
+                  <MaterialCommunityIcons
+                    name={
+                      score === quizData.length
+                        ? "trophy-award"
+                        : "check-decagram"
+                    }
+                    size={80}
+                    color={score === quizData.length ? "#fbbf24" : "#10b981"}
+                  />
                 </View>
-              )}
 
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.primaryButton]}
-                  onPress={resetQuiz}
-                >
-                  <MaterialCommunityIcons
-                    name="refresh"
-                    size={20}
-                    color="#fff"
-                  />
-                  <Text style={styles.primaryButtonText}>NEW QUIZ</Text>
-                </TouchableOpacity>
+                <Text style={styles.modalTitle}>Quiz abgeschlossen!</Text>
 
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.secondaryButton]}
-                  onPress={replayQuiz}
-                >
-                  <MaterialCommunityIcons
-                    name="replay"
-                    size={20}
-                    color="#6366f1"
-                  />
-                  <Text style={styles.secondaryButtonText}>REPLAY</Text>
-                </TouchableOpacity>
+                <View style={styles.scoreCard}>
+                  <Text style={styles.modalScoreNumber}>{score}</Text>
+                  <Text style={styles.modalScoreDivider}>/</Text>
+                  <Text style={styles.modalScoreTotal}>{quizData.length}</Text>
+                </View>
 
-                {/* 🔹 Neuer Statistik-Button */}
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.secondaryButton]}
-                  onPress={goToStatistics}
-                >
-                  <MaterialCommunityIcons
-                    name="chart-bar"
-                    size={20}
-                    color="#6366f1"
-                  />
-                  <Text style={styles.secondaryButtonText}>STATISTICS</Text>
-                </TouchableOpacity>
+                <Text style={styles.modalSubtitle}>
+                  {getRewardMessage(score)}
+                </Text>
 
-                <TouchableOpacity
-                  style={styles.textButton}
-                  onPress={handleMenu}
-                >
-                  <Text style={styles.textButtonText}>HOME</Text>
-                </TouchableOpacity>
-              </View>
+                {failureData.length > 0 && (
+                  <View style={styles.modalWrongAnswers}>
+                    <Text style={styles.modalWrongAnswersTitle}>
+                      Fehleranalyse
+                    </Text>
+                    {failureData.map((wrongAnswer, index) => {
+                      const parts = wrongAnswer.split("=>");
+                      const correctAnsw = parts[1]?.trim();
+                      const wrongAnsw = parts[0]?.trim();
+                      return (
+                        <View key={index} style={styles.wrongItem}>
+                          <View style={styles.wrongItemRow}>
+                            <MaterialCommunityIcons
+                              name="close-circle"
+                              size={16}
+                              color="#ef4444"
+                            />
+                            <Text style={styles.wrongText}>{wrongAnsw}</Text>
+                          </View>
+                          <View style={styles.correctItemRow}>
+                            <MaterialCommunityIcons
+                              name="check-circle"
+                              size={16}
+                              color="#10b981"
+                            />
+                            <Text style={styles.correctText}>
+                              {correctAnsw}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.primaryButton]}
+                    onPress={resetQuiz}
+                  >
+                    <MaterialCommunityIcons
+                      name="refresh"
+                      size={20}
+                      color="#fff"
+                    />
+                    <Text style={styles.primaryButtonText}>Neues Quiz</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.textButton}
+                    onPress={handleMenu}
+                  >
+                    <Text style={styles.textButtonText}>Zurück zum Menü</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
           </View>
         </Modal>
@@ -534,12 +733,32 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 16,
   },
+  progressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
   progressText: {
     fontSize: 14,
     fontWeight: "600",
     color: "#475569",
     textAlign: "center",
-    marginBottom: 8,
+  },
+  boostBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  boostText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#f59e0b",
+    marginLeft: 2,
   },
   progressBarBg: {
     height: 8,
@@ -551,6 +770,23 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: "#6366f1",
     borderRadius: 4,
+  },
+  dailyBoostBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fef3c7",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  dailyBoostText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#f59e0b",
   },
   quizContent: {
     flex: 1,
@@ -669,15 +905,21 @@ const styles = StyleSheet.create({
   modalCard: {
     backgroundColor: "#fff",
     borderRadius: 24,
-    padding: 32,
     width: "100%",
     maxWidth: 400,
-    alignItems: "center",
+    maxHeight: "85%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.25,
     shadowRadius: 25,
     elevation: 15,
+  },
+  modalScrollView: {
+    width: "100%",
+  },
+  modalScrollContent: {
+    padding: 32,
+    alignItems: "center",
   },
   modalIconContainer: {
     marginBottom: 20,
@@ -779,16 +1021,6 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  secondaryButton: {
-    backgroundColor: "#eef2ff",
-    borderWidth: 2,
-    borderColor: "#c7d2fe",
-  },
-  secondaryButtonText: {
-    color: "#6366f1",
     fontSize: 16,
     fontWeight: "700",
   },

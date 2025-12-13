@@ -1,3 +1,4 @@
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,18 +7,78 @@ import {
   Linking,
   ScrollView,
   Animated,
+  Modal,
+  Alert,
 } from "react-native";
-import React, { useEffect, useRef } from "react";
-import { FontAwesome } from "@expo/vector-icons";
+import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
+import { openDatabaseSync } from "expo-sqlite";
+import ABanner from "./banner";
 import { OwlEmoji } from "./images/OwlIcon";
+
+const db = openDatabaseSync("appdata.db");
+
+const RANKS = [
+  { minPerfect: 0, name: "Student", color: "#94a3b8", emoji: "📚" },
+  { minPerfect: 1, name: "Scholar", color: "#60a5fa", emoji: "🎓" },
+  { minPerfect: 3, name: "Bachelor", color: "#8b5cf6", emoji: "🎓⭐" },
+  { minPerfect: 5, name: "Master", color: "#10b981", emoji: "🎓⭐⭐" },
+  { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "🧪👨‍🔬" },
+  { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "🦉👑" },
+];
+
+const ACHIEVEMENTS = [
+  {
+    id: "achievementFirstStar",
+    icon: "star",
+    color: "#fbbf24",
+    label: "⭐ First Star",
+    requirement: 1,
+  },
+  {
+    id: "achievementGoldenStudent",
+    icon: "trophy",
+    color: "#f59e0b",
+    label: "🏅 Golden Student",
+    requirement: 5,
+  },
+  {
+    id: "achievementDoctoralAward",
+    icon: "medal",
+    color: "#8b5cf6",
+    label: "🎖 Doctoral Award",
+    requirement: 10,
+  },
+  {
+    id: "achievementProfessorBadge",
+    icon: "crown",
+    color: "#ef4444",
+    label: "👑 Professor Badge",
+    requirement: 20,
+  },
+];
 
 export default function Page() {
   const router = useRouter();
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  const [achievements, setAchievements] = useState(null);
+  const [currentRank, setCurrentRank] = useState(RANKS[0]);
+  const [nextRank, setNextRank] = useState(RANKS[1]);
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [perfectsUntilNext, setPerfectsUntilNext] = useState(1);
+  const [showRankPopup, setShowRankPopup] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
+  const [showDailyBoost, setShowDailyBoost] = useState(false);
+
   useEffect(() => {
+    loadUserStats();
+
+    // Owl pulse animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -34,40 +95,302 @@ export default function Page() {
     ).start();
   }, []);
 
-  const openPlayStore = () => {
-    const playStoreLink =
-      "https://play.google.com/store/apps/details?id=com.tunakhan007.derdiedastrainer&pcampaignid=web_share";
-    Linking.openURL(playStoreLink);
-  };
+  useEffect(() => {
+    if (achievements) {
+      Animated.timing(progressAnim, {
+        toValue: progressPercent,
+        duration: 800,
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [progressPercent, achievements]);
 
-  const openPlayStoreApps = () => {
-    const playStoreLink =
-      "https://play.google.com/store/apps/developer?id=FocusSoftware";
-    Linking.openURL(playStoreLink);
-  };
-
-  const speakWord = () => {
-    const greeting = "Hello welcome to german article guru";
-    const options = {
-      voice: "de-de-x-deb-network",
-    };
+  const ensureTables = async () => {
     try {
-      Speech.speak(greeting, options);
-    } catch (error) {
-      console.error("Speech.speak : " + error);
+      const achTableInfo = await db.getAllAsync(
+        `PRAGMA table_info(achievements)`
+      );
+      const hasNewColumns = achTableInfo.some(
+        (col) => col.name === "dailyBoostUsed"
+      );
+
+      if (!hasNewColumns && achTableInfo.length > 0) {
+        console.log("📦 Migrating achievements table...");
+        await db.execAsync(`
+          CREATE TABLE achievements_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            userId TEXT DEFAULT 'default',
+            totalQuizzes INTEGER DEFAULT 0,
+            totalCorrect INTEGER DEFAULT 0,
+            totalQuestions INTEGER DEFAULT 0,
+            perfectScores INTEGER DEFAULT 0,
+            longestStreak INTEGER DEFAULT 0,
+            lastPlayedDate TEXT,
+            consecutiveDays INTEGER DEFAULT 0,
+            achievementFirstStar INTEGER DEFAULT 0,
+            achievementGoldenStudent INTEGER DEFAULT 0,
+            achievementDoctoralAward INTEGER DEFAULT 0,
+            achievementProfessorBadge INTEGER DEFAULT 0,
+            highestScore INTEGER DEFAULT 0,
+            fastestTime INTEGER DEFAULT 0,
+            lastDailyBoost TEXT,
+            dailyBoostUsed INTEGER DEFAULT 0,
+            streakFreeze INTEGER DEFAULT 0
+          );
+        `);
+        await db.execAsync(`
+          INSERT INTO achievements_new (
+            id, userId, totalQuizzes, totalCorrect, totalQuestions,
+            perfectScores, longestStreak, lastPlayedDate, consecutiveDays
+          )
+          SELECT
+            id, userId, totalQuizzes, totalCorrect, totalQuestions,
+            perfectScores, longestStreak, lastPlayedDate, consecutiveDays
+          FROM achievements;
+        `);
+        await db.execAsync(`DROP TABLE achievements;`);
+        await db.execAsync(
+          `ALTER TABLE achievements_new RENAME TO achievements;`
+        );
+        console.log("✅ Achievements table migrated");
+      } else if (achTableInfo.length === 0) {
+        await db.execAsync(`
+          CREATE TABLE achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            userId TEXT DEFAULT 'default',
+            totalQuizzes INTEGER DEFAULT 0,
+            totalCorrect INTEGER DEFAULT 0,
+            totalQuestions INTEGER DEFAULT 0,
+            perfectScores INTEGER DEFAULT 0,
+            longestStreak INTEGER DEFAULT 0,
+            lastPlayedDate TEXT,
+            consecutiveDays INTEGER DEFAULT 0,
+            achievementFirstStar INTEGER DEFAULT 0,
+            achievementGoldenStudent INTEGER DEFAULT 0,
+            achievementDoctoralAward INTEGER DEFAULT 0,
+            achievementProfessorBadge INTEGER DEFAULT 0,
+            highestScore INTEGER DEFAULT 0,
+            fastestTime INTEGER DEFAULT 0,
+            lastDailyBoost TEXT,
+            dailyBoostUsed INTEGER DEFAULT 0,
+            streakFreeze INTEGER DEFAULT 0
+          );
+        `);
+      }
+    } catch (err) {
+      console.error("ensureTables error:", err);
     }
   };
 
-  const GridButton = ({ icon, title, colors, onPress }) => (
-    <TouchableOpacity
-      style={[styles.gridButton, { backgroundColor: colors[0] }]}
-      onPress={onPress}
-    >
-      <View style={styles.gridButtonContent}>
-        <FontAwesome name={icon} size={36} color="#FFFFFF" />
-        <Text style={styles.gridButtonText}>{title}</Text>
-      </View>
-    </TouchableOpacity>
+  const loadUserStats = async () => {
+    try {
+      await ensureTables();
+      const row = await db.getFirstAsync(
+        "SELECT * FROM achievements WHERE userId='default'"
+      );
+
+      if (!row) {
+        await db.execAsync(`
+          INSERT INTO achievements (userId, lastPlayedDate, lastDailyBoost)
+          VALUES ('default', '${new Date().toISOString()}', '${
+          new Date().toISOString().split("T")[0]
+        }');
+        `);
+        const created = await db.getFirstAsync(
+          "SELECT * FROM achievements WHERE userId='default'"
+        );
+        setAchievements(created);
+        calculateRank(created.perfectScores || 0);
+      } else {
+        setAchievements(row);
+        await checkDailyReset(row);
+        calculateRank(row.perfectScores || 0);
+      }
+    } catch (err) {
+      console.error("loadUserStats error:", err);
+    }
+  };
+
+  const calculateRank = (perfectScores) => {
+    let current = RANKS[0];
+    let next = RANKS[1];
+
+    for (let i = RANKS.length - 1; i >= 0; i--) {
+      if ((perfectScores || 0) >= RANKS[i].minPerfect) {
+        current = RANKS[i];
+        next = RANKS[i + 1] || RANKS[i];
+        break;
+      }
+    }
+
+    if (achievements && current.name !== currentRank.name) {
+      triggerRankUp(current);
+    }
+
+    setCurrentRank(current);
+    setNextRank(next);
+
+    if (next && next.name !== current.name) {
+      const inCurrent = (perfectScores || 0) - current.minPerfect;
+      const needed = next.minPerfect - current.minPerfect;
+      const percent = needed > 0 ? (inCurrent / needed) * 100 : 100;
+      setProgressPercent(percent);
+      setPerfectsUntilNext(next.minPerfect - (perfectScores || 0));
+    } else {
+      setProgressPercent(100);
+      setPerfectsUntilNext(0);
+    }
+  };
+
+  const triggerRankUp = (newRank) => {
+    setShowRankPopup(true);
+    Animated.sequence([
+      Animated.spring(scaleAnim, { toValue: 1.1, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }),
+    ]).start();
+
+    try {
+      Speech.speak(`Congratulations! You are now ${newRank.name}`, {
+        language: "en",
+      });
+    } catch (e) {
+      console.error("Speech error:", e);
+    }
+  };
+
+  const checkDailyReset = async (row) => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      if (!row.lastDailyBoost || row.lastDailyBoost !== today) {
+        await db.execAsync(`
+          UPDATE achievements
+          SET dailyBoostUsed = 0, lastDailyBoost = '${today}'
+          WHERE userId='default'
+        `);
+        const updated = await db.getFirstAsync(
+          "SELECT * FROM achievements WHERE userId='default'"
+        );
+        setAchievements(updated);
+        setShowDailyBoost(true);
+        setTimeout(() => setShowDailyBoost(false), 3000);
+      }
+    } catch (err) {
+      console.error("checkDailyReset error:", err);
+    }
+  };
+
+  const buyStreakFreeze = async () => {
+    Alert.alert(
+      "Feature Coming Soon",
+      "Streak Freeze will be available in a future update!"
+    );
+  };
+
+  const getUnlockedAchievements = () => {
+    if (!achievements) return [];
+    return ACHIEVEMENTS.filter((ach) => achievements[ach.id] === 1);
+  };
+
+  const getLeaderboardEntries = () => {
+    if (!achievements) return [];
+    return [
+      {
+        label: "Perfect Quizzes",
+        value: achievements.perfectScores || 0,
+        icon: "star",
+        color: "#fbbf24",
+      },
+      {
+        label: "Highest Score",
+        value: achievements.highestScore || 0,
+        icon: "trophy",
+        color: "#ef4444",
+      },
+      {
+        label: "Day Streak",
+        value: achievements.consecutiveDays || 0,
+        icon: "fire",
+        color: "#f97316",
+      },
+      {
+        label: "Total Quizzes",
+        value: achievements.totalQuizzes || 0,
+        icon: "book",
+        color: "#8b5cf6",
+      },
+      {
+        label: "Total Correct",
+        value: achievements.totalCorrect || 0,
+        icon: "check-circle",
+        color: "#10b981",
+      },
+      {
+        label: "Streak Freezes",
+        value: achievements.streakFreeze || 0,
+        icon: "snow-outline",
+        color: "#06b6d4",
+      },
+    ];
+  };
+
+  const animatedWidth = progressAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ["0%", "100%"],
+  });
+
+  const tap = (callback) => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.98,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start(() => callback && callback());
+  };
+
+  const openPlayStore = () => {
+    Linking.openURL(
+      "https://play.google.com/store/apps/details?id=com.tunakhan007.derdiedastrainer&pcampaignid=web_share"
+    );
+  };
+
+  const openPlayStoreApps = () => {
+    Linking.openURL(
+      "https://play.google.com/store/apps/developer?id=FocusSoftware"
+    );
+  };
+
+  const speakWord = () => {
+    try {
+      Speech.speak("Hello! Welcome to Artikel Trainer", { language: "en" });
+    } catch (e) {
+      console.error("Speech error:", e);
+    }
+  };
+
+  const GridButton = ({ icon, title, onPress, badge }) => (
+    <Animated.View style={{ width: "48%", transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity
+        style={styles.gridButton}
+        onPress={() => tap(onPress)}
+        activeOpacity={0.9}
+      >
+        <View style={styles.gridButtonContent}>
+          <FontAwesome name={icon} size={24} color="#FFFFFF" />
+          <Text style={styles.gridButtonText}>{title}</Text>
+          {badge && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{badge}</Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 
   return (
@@ -84,173 +407,545 @@ export default function Page() {
               style={[styles.owlPulse, { transform: [{ scale: pulseAnim }] }]}
             />
             <View style={styles.owlCircle}>
-              <OwlEmoji size={90} />
+              <OwlEmoji size={60} />
             </View>
           </TouchableOpacity>
-          <Text style={styles.title}>DER DIE DAS</Text>
-          <Text style={styles.subtitle}>GURU</Text>
         </View>
 
-        {/* Grid of Main Buttons */}
+        {/* Stats Row (replaces title) */}
+        {achievements && (
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <MaterialCommunityIcons name="star" size={20} color="#fbbf24" />
+              <Text style={styles.statValue}>
+                {achievements.perfectScores || 0}
+              </Text>
+              <Text style={styles.statLabel}>Perfect</Text>
+            </View>
+            <View style={styles.statBox}>
+              <MaterialCommunityIcons name="fire" size={20} color="#f97316" />
+              <Text style={styles.statValue}>
+                {achievements.consecutiveDays || 0}
+              </Text>
+              <Text style={styles.statLabel}>Streak</Text>
+            </View>
+            <View style={styles.statBox}>
+              <MaterialCommunityIcons name="trophy" size={20} color="#ef4444" />
+              <Text style={styles.statValue}>
+                {achievements.highestScore || 0}
+              </Text>
+              <Text style={styles.statLabel}>Best</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Daily Boost Chip */}
+        {showDailyBoost &&
+          achievements &&
+          achievements.dailyBoostUsed === 0 && (
+            <View style={styles.dailyBoostChip}>
+              <MaterialCommunityIcons name="flash" size={16} color="#fbbf24" />
+              <Text style={styles.dailyBoostText}>
+                Daily Boost Available (2x XP)
+              </Text>
+            </View>
+          )}
+
+        {/* Rank Progress Card */}
+        {achievements && (
+          <View style={styles.rankCard}>
+            <View style={styles.rankHeader}>
+              <Text style={styles.rankEmoji}>{currentRank.emoji}</Text>
+              <View style={styles.rankInfo}>
+                <Text style={styles.rankTitle}>{currentRank.name}</Text>
+                {perfectsUntilNext > 0 && (
+                  <Text style={styles.nextRankLabel}>→ {nextRank.name}</Text>
+                )}
+              </View>
+            </View>
+
+            {perfectsUntilNext > 0 ? (
+              <View style={styles.progressSection}>
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressLabel}>
+                    Progress to {nextRank.name}
+                  </Text>
+                  <Text style={styles.quizzesLeft}>
+                    {perfectsUntilNext} more
+                  </Text>
+                </View>
+                <View style={styles.progressBarContainer}>
+                  <Animated.View
+                    style={[
+                      styles.progressBar,
+                      {
+                        width: animatedWidth,
+                        backgroundColor: currentRank.color,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.progressText}>
+                  {progressPercent.toFixed(0)}%
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.maxRankText}>🎉 Max Rank Achieved!</Text>
+            )}
+          </View>
+        )}
+
+        {/* Unlocked Achievements */}
+        {getUnlockedAchievements().length > 0 && (
+          <View style={styles.achievementsRow}>
+            <Text style={styles.sectionTitle}>Achievements</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.achievementsScroll}
+            >
+              {getUnlockedAchievements().map((ach, idx) => (
+                <View key={idx} style={styles.achievementBadge}>
+                  <Text style={styles.achievementBadgeText}>{ach.label}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Grid Buttons */}
         <View style={styles.gridContainer}>
+          <GridButton
+            icon="play-circle"
+            title="Start Test"
+            onPress={() => router.push("/trainer")}
+            badge={achievements?.dailyBoostUsed === 0 ? "2x" : null}
+          />
           <GridButton
             icon="book"
             title="Power Words"
-            colors={["#60A5FA", "#3B82F6"]}
             onPress={() => router.push("/wordlooker")}
-          />
-          <GridButton
-            icon="graduation-cap"
-            title="Test"
-            colors={["#A78BFA", "#8B5CF6"]}
-            onPress={() => router.push("/trainer")}
           />
           <GridButton
             icon="comment"
             title="Sentences"
-            colors={["#F472B6", "#EC4899"]}
             onPress={() => router.push("/sentences")}
           />
           <GridButton
-            icon="line-chart"
-            title="Test Stats"
-            colors={["#2DD4BF", "#14B8A6"]}
+            icon="bar-chart"
+            title="Statistics"
             onPress={() => router.push("/statistics")}
-          />
-          <GridButton
-            icon="book"
-            title="Top Verbs"
-            colors={["#34D399", "#10B981"]}
-            onPress={() => router.push("/verbs")}
           />
         </View>
 
-        {/* More Apps Button */}
+        {/* Secondary Actions */}
+        <View style={styles.secondaryActions}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => router.push("/verbs")}
+          >
+            <MaterialCommunityIcons
+              name="book-open-variant"
+              size={20}
+              color="#007AFF"
+            />
+            <Text style={styles.secondaryButtonText}>Top 20 Verbs</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => setShowAchievements(true)}
+          >
+            <MaterialCommunityIcons name="medal" size={20} color="#007AFF" />
+            <Text style={styles.secondaryButtonText}>Your Achievements</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => setShowLeaderboard(true)}
+          >
+            <MaterialCommunityIcons name="trophy" size={20} color="#007AFF" />
+            <Text style={styles.secondaryButtonText}>Your Stats</Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity
           style={styles.moreAppsButton}
           onPress={openPlayStoreApps}
         >
-          <FontAwesome name="bolt" size={24} color="#FFFFFF" />
+          <FontAwesome name="bolt" size={20} color="#FFFFFF" />
           <Text style={styles.moreAppsText}>More Apps</Text>
         </TouchableOpacity>
 
-        {/* Rate Button */}
         <TouchableOpacity style={styles.rateButton} onPress={openPlayStore}>
-          <FontAwesome name="star" size={24} color="#FFFFFF" />
+          <FontAwesome name="star" size={20} color="#FFFFFF" />
           <Text style={styles.rateText}>Rate Us</Text>
-          <FontAwesome name="star" size={24} color="#FFFFFF" />
         </TouchableOpacity>
+
+        <View style={styles.bannerWrapper}>
+          <ABanner />
+        </View>
+
+        <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Rank Up Modal */}
+      <Modal visible={showRankPopup} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[styles.modalBox, { transform: [{ scale: scaleAnim }] }]}
+          >
+            <MaterialCommunityIcons
+              name="trophy-award"
+              size={60}
+              color="#34C759"
+            />
+            <Text style={styles.modalTitle}>Rank Up!</Text>
+            <Text style={styles.modalText}>
+              You are now {currentRank.name}!
+            </Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowRankPopup(false)}
+            >
+              <Text style={styles.modalButtonText}>Continue</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Leaderboard Modal */}
+      <Modal visible={showLeaderboard} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.leaderboardBox}>
+            <View style={styles.leaderboardHeader}>
+              <Text style={styles.leaderboardTitle}>Your Stats</Text>
+              <TouchableOpacity onPress={() => setShowLeaderboard(false)}>
+                <MaterialCommunityIcons
+                  name="close"
+                  size={24}
+                  color="#64748b"
+                />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.leaderboardScroll}>
+              {getLeaderboardEntries().map((entry, idx) => (
+                <View key={idx} style={styles.leaderboardRow}>
+                  <View style={styles.leaderboardLeft}>
+                    <MaterialCommunityIcons
+                      name={entry.icon}
+                      size={20}
+                      color={entry.color}
+                    />
+                    <Text style={styles.leaderboardLabel}>{entry.label}</Text>
+                  </View>
+                  <Text
+                    style={[styles.leaderboardValue, { color: entry.color }]}
+                  >
+                    {entry.value}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.freezeButton}
+              onPress={buyStreakFreeze}
+            >
+              <MaterialCommunityIcons name="snowflake" size={20} color="#fff" />
+              <Text style={styles.freezeButtonText}>Buy Streak Freeze</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Achievements Modal */}
+      <Modal visible={showAchievements} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.achievementsBox}>
+            <View style={styles.achievementsHeader}>
+              <Text style={styles.achievementsBoxTitle}>Achievements</Text>
+              <TouchableOpacity onPress={() => setShowAchievements(false)}>
+                <MaterialCommunityIcons
+                  name="close"
+                  size={24}
+                  color="#64748b"
+                />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.achievementsBoxScroll}>
+              {ACHIEVEMENTS.map((ach, idx) => {
+                const isUnlocked = achievements && achievements[ach.id] === 1;
+                const progress = achievements
+                  ? achievements.perfectScores || 0
+                  : 0;
+                return (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.achievementItem,
+                      isUnlocked && styles.achievementUnlocked,
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={ach.icon}
+                      size={30}
+                      color={isUnlocked ? ach.color : "#cbd5e1"}
+                    />
+                    <View style={styles.achievementItemInfo}>
+                      <Text
+                        style={[
+                          styles.achievementItemLabel,
+                          isUnlocked && styles.achievementItemLabelUnlocked,
+                        ]}
+                      >
+                        {ach.label}
+                      </Text>
+                      <Text style={styles.achievementItemProgress}>
+                        {progress} / {ach.requirement}
+                      </Text>
+                    </View>
+                    {isUnlocked && (
+                      <MaterialCommunityIcons
+                        name="check-circle"
+                        size={20}
+                        color={ach.color}
+                      />
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#E0E7FF",
-  },
-  scrollView: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: "#F2F2F7" },
+  scrollView: { flex: 1 },
   contentContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 30,
+    paddingHorizontal: 24,
+    paddingTop: 48,
+    paddingBottom: 32,
   },
   header: {
     alignItems: "center",
     marginBottom: 24,
   },
   owlContainer: {
-    width: 112,
-    height: 112,
-    marginBottom: 16,
+    width: 100,
+    height: 100,
     alignItems: "center",
     justifyContent: "center",
   },
   owlPulse: {
     position: "absolute",
-    width: 121,
-    height: 121,
-    borderRadius: 51,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: "rgba(251, 191, 36, 0.2)",
   },
   owlCircle: {
-    width: 112,
-    height: 112,
-    borderRadius: 71,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     backgroundColor: "#FBBF24",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  title: {
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    marginHorizontal: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  statValue: {
     fontSize: 24,
-    fontWeight: "800",
-    color: "#1F2937",
-    letterSpacing: 0.5,
+    fontWeight: "bold",
+    color: "#1C1C1E",
+    marginTop: 4,
   },
-  subtitle: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#F59E0B",
-    letterSpacing: 1,
-    marginTop: -4,
+  statLabel: {
+    fontSize: 11,
+    color: "#8E8E93",
+    marginTop: 2,
   },
+  dailyBoostChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFF7E6",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 24,
+    alignSelf: "center",
+  },
+  dailyBoostText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#f59e0b",
+  },
+  rankCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  rankHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  rankEmoji: {
+    fontSize: 48,
+    marginRight: 16,
+  },
+  rankInfo: {
+    flex: 1,
+  },
+  rankTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#1C1C1E",
+  },
+  nextRankLabel: {
+    fontSize: 14,
+    color: "#8E8E93",
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  progressSection: {},
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  progressLabel: { fontSize: 13, color: "#8E8E93", fontWeight: "500" },
+  quizzesLeft: { fontSize: 13, color: "#007AFF", fontWeight: "600" },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: "#E5E5EA",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  progressBar: { height: "100%", borderRadius: 4 },
+  progressText: {
+    fontSize: 12,
+    color: "#8E8E93",
+    textAlign: "right",
+  },
+  maxRankText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#34C759",
+    textAlign: "center",
+  },
+  achievementsRow: { marginBottom: 24 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1C1C1E",
+    marginBottom: 12,
+  },
+  achievementsScroll: { flexDirection: "row" },
+  achievementBadge: {
+    backgroundColor: "#E5E5EA",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  achievementBadgeText: { fontSize: 12, fontWeight: "600", color: "#1C1C1E" },
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    marginBottom: 16,
+    marginBottom: 24,
   },
   gridButton: {
-    width: "48%",
-    aspectRatio: 0.85,
-    borderRadius: 24,
-    marginBottom: 14,
+    backgroundColor: "#007AFF",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   gridButtonContent: {
-    flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
+    gap: 8,
   },
   gridButtonText: {
     color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
-    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "600",
   },
+  badge: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    backgroundColor: "#FF3B30",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  badgeText: { color: "#fff", fontSize: 10, fontWeight: "bold" },
+  secondaryActions: {
+    marginBottom: 24,
+    gap: 12,
+  },
+  secondaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+  },
+  secondaryButtonText: { color: "#007AFF", fontSize: 15, fontWeight: "600" },
   moreAppsButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
+    gap: 8,
     backgroundColor: "#FB923C",
     paddingVertical: 16,
-    borderRadius: 24,
-    marginBottom: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    borderRadius: 16,
+    marginBottom: 12,
   },
-  moreAppsText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
-  },
+  moreAppsText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
   rateButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -258,16 +953,123 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: "#FBBF24",
     paddingVertical: 16,
-    borderRadius: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    borderRadius: 16,
   },
-  rateText: {
-    color: "#FFFFFF",
+  rateText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  bannerWrapper: { marginTop: 24 },
+  bottomSpacer: { height: 80 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  modalBox: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginTop: 12,
+    marginBottom: 8,
+    color: "#1C1C1E",
+  },
+  modalText: {
     fontSize: 16,
-    fontWeight: "700",
+    color: "#8E8E93",
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  modalButton: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: "100%",
+    alignItems: "center",
+  },
+  modalButtonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  leaderboardBox: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+  },
+  leaderboardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  leaderboardTitle: { fontSize: 20, fontWeight: "bold", color: "#1C1C1E" },
+  leaderboardScroll: { maxHeight: 300 },
+  leaderboardRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5EA",
+  },
+  leaderboardLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  leaderboardLabel: { fontSize: 15, color: "#8E8E93", fontWeight: "500" },
+  leaderboardValue: { fontSize: 16, fontWeight: "600" },
+  freezeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#007AFF",
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  freezeButtonText: { color: "#fff", fontSize: 15, fontWeight: "600" },
+  achievementsBox: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+  },
+  achievementsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  achievementsBoxTitle: { fontSize: 20, fontWeight: "bold", color: "#1C1C1E" },
+  achievementsBoxScroll: { maxHeight: 400 },
+  achievementItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5EA",
+  },
+  achievementUnlocked: {
+    borderBottomColor: "#007AFF",
+  },
+  achievementItemInfo: { flex: 1, marginLeft: 12 },
+  achievementItemLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#8E8E93",
+    marginBottom: 4,
+  },
+  achievementItemLabelUnlocked: { color: "#1C1C1E" },
+  achievementItemProgress: {
+    fontSize: 13,
+    color: "#8E8E93",
   },
 });
