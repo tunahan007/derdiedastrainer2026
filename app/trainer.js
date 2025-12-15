@@ -45,7 +45,6 @@ const App = () => {
   const [failureData, setFailureData] = useState([]);
   const [correctData, setCorrectData] = useState([]);
   const [fadeAnim] = useState(new Animated.Value(1));
-  const [dailyBoostActive, setDailyBoostActive] = useState(false);
   const router = useRouter();
 
   const initialQuiz = () =>
@@ -53,28 +52,6 @@ const App = () => {
 
   const [quizData, setQuizData] = useState(initialQuiz());
   const [lastQuizData, setLastQuizData] = useState(quizData);
-
-  // Check for daily boost on mount
-  useEffect(() => {
-    checkDailyBoost();
-  }, []);
-
-  const checkDailyBoost = async () => {
-    try {
-      await ensureAchievementsTable();
-      const row = await db.getFirstAsync(
-        "SELECT dailyBoostUsed, lastDailyBoost FROM achievements WHERE userId='default'"
-      );
-      if (row) {
-        const today = new Date().toISOString().split("T")[0];
-        if (row.lastDailyBoost === today && row.dailyBoostUsed === 0) {
-          setDailyBoostActive(true);
-        }
-      }
-    } catch (error) {
-      console.error("checkDailyBoost error:", error);
-    }
-  };
 
   const ensureAchievementsTable = async () => {
     try {
@@ -97,28 +74,21 @@ const App = () => {
             achievementDoctoralAward INTEGER DEFAULT 0,
             achievementProfessorBadge INTEGER DEFAULT 0,
             highestScore INTEGER DEFAULT 0,
-            fastestTime INTEGER DEFAULT 0,
-            lastDailyBoost TEXT,
-            dailyBoostUsed INTEGER DEFAULT 0,
-            streakFreeze INTEGER DEFAULT 0
+            fastestTime INTEGER DEFAULT 0
           );
         `);
 
-        const today = new Date().toISOString().split("T")[0];
         await db.execAsync(`
-          INSERT INTO achievements (userId, lastPlayedDate, lastDailyBoost)
-          VALUES ('default', '${new Date().toISOString()}', '${today}');
+          INSERT INTO achievements (userId, lastPlayedDate)
+          VALUES ('default', '${new Date().toISOString()}');
         `);
       } else {
         const hasNewColumns = tableInfo.some(
-          (col) => col.name === "dailyBoostUsed"
+          (col) => col.name === "highestScore"
         );
 
         if (!hasNewColumns) {
           await db.execAsync(`
-            ALTER TABLE achievements ADD COLUMN lastDailyBoost TEXT;
-            ALTER TABLE achievements ADD COLUMN dailyBoostUsed INTEGER DEFAULT 0;
-            ALTER TABLE achievements ADD COLUMN streakFreeze INTEGER DEFAULT 0;
             ALTER TABLE achievements ADD COLUMN highestScore INTEGER DEFAULT 0;
             ALTER TABLE achievements ADD COLUMN fastestTime INTEGER DEFAULT 0;
           `);
@@ -349,7 +319,6 @@ const App = () => {
 
       let newConsecutiveDays = currentAch.consecutiveDays || 0;
       let newLongestStreak = currentAch.longestStreak || 0;
-      let streakFreezeUsed = false;
 
       if (!lastPlayed) {
         newConsecutiveDays = 1;
@@ -365,15 +334,8 @@ const App = () => {
           // Consecutive day
           newConsecutiveDays++;
         } else if (diffDays > 1) {
-          // Streak broken - check for freeze
-          if ((currentAch.streakFreeze || 0) > 0) {
-            // Use streak freeze
-            streakFreezeUsed = true;
-            console.log("🧊 Streak freeze used!");
-          } else {
-            // Reset streak
-            newConsecutiveDays = 1;
-          }
+          // Streak broken - reset
+          newConsecutiveDays = 1;
         }
       }
 
@@ -407,19 +369,9 @@ const App = () => {
         fastestTime = ${newFastestTime}
       `;
 
-      const dailyBoostUpdate = dailyBoostActive ? "dailyBoostUsed = 1" : "";
-      const streakFreezeUpdate = streakFreezeUsed
-        ? "streakFreeze = streakFreeze - 1"
-        : "";
-
       // Combine all updates, filtering out empty strings
-      const allUpdates = [
-        baseUpdate,
-        achievementFields,
-        dailyBoostUpdate,
-        streakFreezeUpdate,
-      ]
-        .filter((s) => s && s.trim()) // Filter out empty/null/undefined
+      const allUpdates = [baseUpdate, achievementFields]
+        .filter((s) => s && s.trim())
         .join(", ");
 
       await db.execAsync(`
@@ -431,10 +383,6 @@ const App = () => {
       console.log("✅ Achievements updated");
       console.log(`📊 Quiz: ${newTotalQuizzes}, Perfect: ${newPerfectScores}`);
       console.log(`🔥 Streak: ${newConsecutiveDays} days`);
-
-      if (dailyBoostActive) {
-        console.log("🚀 Daily boost used!");
-      }
     } catch (error) {
       console.error("❌ updateAchievements error:", error);
     }
@@ -481,13 +429,25 @@ const App = () => {
   }, [showModal]);
 
   const getRewardMessage = (score) => {
-    if (score === quizData.length) return "Perfekt! 🌟🌟🌟🌟🌟";
-    if (score >= 15) return "Super gemacht! 🌟🌟🌟🌟";
-    if (score >= 10) return "Gut gemacht! 🌟🌟🌟";
-    if (score >= 5) return "Ordentliche Leistung! 🌟🌟";
-    return "Nicht schlecht – weiter üben! ⭐";
-  };
+    const isPerfect = score === quizData.length;
 
+    if (isPerfect) {
+      return "🎉 PERFEKT! +1 ⭐ STERN VERDIENT!\nSammle Sterne, um vom Student zum Professor aufzusteigen! 🦉";
+    }
+    if (score >= 18) {
+      return "Sooo nah dran! 🔥\n20/20 = 1 Stern = Rangaufstieg!";
+    }
+    if (score >= 15) {
+      return "Super! 🌟🌟🌟\nPerfekte Scores bringen dich zum nächsten Rang!";
+    }
+    if (score >= 10) {
+      return "Gut! 🌟🌟\n20/20 Scores sammeln Sterne für deinen Rang!";
+    }
+    if (score >= 5) {
+      return "Ordentlich! 🌟\nStrebe nach perfekten Scores!";
+    }
+    return "Weiter so! ⭐\nDein Weg zum Professor beginnt hier!";
+  };
   const progressPercentage =
     ((currentQuestionIndex + 1) / quizData.length) * 100;
 
@@ -505,21 +465,9 @@ const App = () => {
           </TouchableOpacity>
 
           <View style={styles.progressContainer}>
-            <View style={styles.progressHeader}>
-              <Text style={styles.progressText}>
-                {currentQuestionIndex + 1} / {quizData.length}
-              </Text>
-              {dailyBoostActive && (
-                <View style={styles.boostBadge}>
-                  <MaterialCommunityIcons
-                    name="flash"
-                    size={12}
-                    color="#fbbf24"
-                  />
-                  <Text style={styles.boostText}>2x</Text>
-                </View>
-              )}
-            </View>
+            <Text style={styles.progressText}>
+              {currentQuestionIndex + 1} / {quizData.length}
+            </Text>
             <View style={styles.progressBarBg}>
               <View
                 style={[
@@ -534,16 +482,6 @@ const App = () => {
             <MaterialCommunityIcons name="home" size={24} color="#6366f1" />
           </TouchableOpacity>
         </View>
-
-        {/* Daily Boost Indicator */}
-        {dailyBoostActive && (
-          <View style={styles.dailyBoostBanner}>
-            <MaterialCommunityIcons name="flash" size={16} color="#fbbf24" />
-            <Text style={styles.dailyBoostText}>
-              Daily Boost Active! First quiz today 🚀
-            </Text>
-          </View>
-        )}
 
         {/* Quiz Content with Animation */}
         <Animated.View style={[styles.quizContent, { opacity: fadeAnim }]}>
@@ -734,32 +672,12 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 16,
   },
-  progressHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
   progressText: {
     fontSize: 14,
     fontWeight: "600",
     color: "#475569",
     textAlign: "center",
-  },
-  boostBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fef3c7",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  boostText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#f59e0b",
-    marginLeft: 2,
+    marginBottom: 8,
   },
   progressBarBg: {
     height: 8,
@@ -771,23 +689,6 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: "#6366f1",
     borderRadius: 4,
-  },
-  dailyBoostBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fef3c7",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginHorizontal: 20,
-    marginTop: 12,
-    borderRadius: 12,
-    gap: 8,
-  },
-  dailyBoostText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#f59e0b",
   },
   quizContent: {
     flex: 1,

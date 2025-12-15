@@ -73,7 +73,10 @@ export default function Page() {
   const [showRankPopup, setShowRankPopup] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
-  const [showDailyBoost, setShowDailyBoost] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [showCongratulations, setShowCongratulations] = useState(false);
+  const [congratsRank, setCongratsRank] = useState(null);
 
   useEffect(() => {
     loadUserStats();
@@ -110,50 +113,8 @@ export default function Page() {
       const achTableInfo = await db.getAllAsync(
         `PRAGMA table_info(achievements)`
       );
-      const hasNewColumns = achTableInfo.some(
-        (col) => col.name === "dailyBoostUsed"
-      );
 
-      if (!hasNewColumns && achTableInfo.length > 0) {
-        console.log("📦 Migrating achievements table...");
-        await db.execAsync(`
-          CREATE TABLE achievements_new (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            userId TEXT DEFAULT 'default',
-            totalQuizzes INTEGER DEFAULT 0,
-            totalCorrect INTEGER DEFAULT 0,
-            totalQuestions INTEGER DEFAULT 0,
-            perfectScores INTEGER DEFAULT 0,
-            longestStreak INTEGER DEFAULT 0,
-            lastPlayedDate TEXT,
-            consecutiveDays INTEGER DEFAULT 0,
-            achievementFirstStar INTEGER DEFAULT 0,
-            achievementGoldenStudent INTEGER DEFAULT 0,
-            achievementDoctoralAward INTEGER DEFAULT 0,
-            achievementProfessorBadge INTEGER DEFAULT 0,
-            highestScore INTEGER DEFAULT 0,
-            fastestTime INTEGER DEFAULT 0,
-            lastDailyBoost TEXT,
-            dailyBoostUsed INTEGER DEFAULT 0,
-            streakFreeze INTEGER DEFAULT 0
-          );
-        `);
-        await db.execAsync(`
-          INSERT INTO achievements_new (
-            id, userId, totalQuizzes, totalCorrect, totalQuestions,
-            perfectScores, longestStreak, lastPlayedDate, consecutiveDays
-          )
-          SELECT
-            id, userId, totalQuizzes, totalCorrect, totalQuestions,
-            perfectScores, longestStreak, lastPlayedDate, consecutiveDays
-          FROM achievements;
-        `);
-        await db.execAsync(`DROP TABLE achievements;`);
-        await db.execAsync(
-          `ALTER TABLE achievements_new RENAME TO achievements;`
-        );
-        console.log("✅ Achievements table migrated");
-      } else if (achTableInfo.length === 0) {
+      if (achTableInfo.length === 0) {
         await db.execAsync(`
           CREATE TABLE achievements (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -171,11 +132,19 @@ export default function Page() {
             achievementProfessorBadge INTEGER DEFAULT 0,
             highestScore INTEGER DEFAULT 0,
             fastestTime INTEGER DEFAULT 0,
-            lastDailyBoost TEXT,
-            dailyBoostUsed INTEGER DEFAULT 0,
-            streakFreeze INTEGER DEFAULT 0
+            tutorialCompleted INTEGER DEFAULT 0
           );
         `);
+      } else {
+        // Check if tutorialCompleted column exists
+        const hasTutorial = achTableInfo.some(
+          (col) => col.name === "tutorialCompleted"
+        );
+        if (!hasTutorial) {
+          await db.execAsync(`
+            ALTER TABLE achievements ADD COLUMN tutorialCompleted INTEGER DEFAULT 0;
+          `);
+        }
       }
     } catch (err) {
       console.error("ensureTables error:", err);
@@ -191,125 +160,41 @@ export default function Page() {
 
       if (!row) {
         await db.execAsync(`
-          INSERT INTO achievements (userId, lastPlayedDate, lastDailyBoost)
-          VALUES ('default', '${new Date().toISOString()}', '${
-          new Date().toISOString().split("T")[0]
-        }');
+          INSERT INTO achievements (userId, lastPlayedDate, tutorialCompleted)
+          VALUES ('default', '${new Date().toISOString()}', 0);
         `);
         const created = await db.getFirstAsync(
           "SELECT * FROM achievements WHERE userId='default'"
         );
         setAchievements(created);
         calculateRank(created.perfectScores || 0);
+        // Show tutorial for first-time users
+        setShowTutorial(true);
       } else {
         setAchievements(row);
-        await checkDailyReset(row);
         calculateRank(row.perfectScores || 0);
+        // Show tutorial if not completed
+        if (row.tutorialCompleted === 0) {
+          setShowTutorial(true);
+        }
       }
     } catch (err) {
       console.error("loadUserStats error:", err);
     }
   };
 
-  const resetDatabase = async () => {
-    Alert.alert(
-      "⚠️ Datenbank zurücksetzen",
-      "Möchtest du wirklich ALLE Daten löschen?\n\n• Alle Quiz-Ergebnisse\n• Alle Statistiken\n• Alle Achievements\n• Streak wird zurückgesetzt\n• Failed Words gelöscht",
-      [
-        {
-          text: "Abbrechen",
-          style: "cancel",
-        },
-        {
-          text: "ALLES LÖSCHEN",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              console.log("🗑️ Resetting database...");
-
-              // Delete all tables
-              await db.execAsync(`DROP TABLE IF EXISTS statistics;`);
-              await db.execAsync(`DROP TABLE IF EXISTS achievements;`);
-              await db.execAsync(`DROP TABLE IF EXISTS failed_words;`);
-
-              // Recreate tables
-              await db.execAsync(`
-              CREATE TABLE statistics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date TEXT NOT NULL,
-                totalReviewed INTEGER,
-                correctAnswers INTEGER,
-                fails INTEGER,
-                progressPercent REAL,
-                sessionTime INTEGER
-              );
-            `);
-
-              await db.execAsync(`
-              CREATE TABLE achievements (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                userId TEXT DEFAULT 'default',
-                totalQuizzes INTEGER DEFAULT 0,
-                totalCorrect INTEGER DEFAULT 0,
-                totalQuestions INTEGER DEFAULT 0,
-                perfectScores INTEGER DEFAULT 0,
-                longestStreak INTEGER DEFAULT 0,
-                lastPlayedDate TEXT,
-                consecutiveDays INTEGER DEFAULT 0,
-                achievementFirstStar INTEGER DEFAULT 0,
-                achievementGoldenStudent INTEGER DEFAULT 0,
-                achievementDoctoralAward INTEGER DEFAULT 0,
-                achievementProfessorBadge INTEGER DEFAULT 0,
-                highestScore INTEGER DEFAULT 0,
-                fastestTime INTEGER DEFAULT 0,
-                lastDailyBoost TEXT,
-                dailyBoostUsed INTEGER DEFAULT 0,
-                streakFreeze INTEGER DEFAULT 0
-              );
-            `);
-
-              await db.execAsync(`
-              CREATE TABLE failed_words (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                word TEXT NOT NULL,
-                correctArticle TEXT NOT NULL,
-                wrongArticle TEXT NOT NULL,
-                failCount INTEGER DEFAULT 1,
-                lastFailed TEXT NOT NULL,
-                UNIQUE(word, correctArticle)
-              );
-            `);
-
-              // Insert default user
-              const today = new Date().toISOString().split("T")[0];
-              await db.execAsync(`
-              INSERT INTO achievements (userId, lastPlayedDate, lastDailyBoost)
-              VALUES ('default', '${new Date().toISOString()}', '${today}');
-            `);
-
-              console.log("✅ Database reset complete");
-
-              Alert.alert(
-                "✅ Erfolgreich",
-                "Datenbank wurde zurückgesetzt!\n\nBitte starte die App neu.",
-                [
-                  {
-                    text: "OK",
-                    onPress: () => {
-                      // Reload stats
-                      loadUserStats();
-                    },
-                  },
-                ]
-              );
-            } catch (error) {
-              console.error("Reset error:", error);
-              Alert.alert("Fehler", "Reset fehlgeschlagen: " + error.message);
-            }
-          },
-        },
-      ]
-    );
+  const completeTutorial = async () => {
+    try {
+      await db.execAsync(`
+        UPDATE achievements
+        SET tutorialCompleted = 1
+        WHERE userId='default'
+      `);
+      setShowTutorial(false);
+      setTutorialStep(0);
+    } catch (err) {
+      console.error("completeTutorial error:", err);
+    }
   };
 
   const calculateRank = (perfectScores) => {
@@ -324,7 +209,14 @@ export default function Page() {
       }
     }
 
-    if (achievements && current.name !== currentRank.name) {
+    // Check if rank changed and show congratulations
+    if (
+      achievements &&
+      current.name !== currentRank.name &&
+      currentRank.name !== "Student"
+    ) {
+      setCongratsRank(current);
+      setShowCongratulations(true);
       triggerRankUp(current);
     }
 
@@ -357,34 +249,6 @@ export default function Page() {
     } catch (e) {
       console.error("Speech error:", e);
     }
-  };
-
-  const checkDailyReset = async (row) => {
-    try {
-      const today = new Date().toISOString().split("T")[0];
-      if (!row.lastDailyBoost || row.lastDailyBoost !== today) {
-        await db.execAsync(`
-          UPDATE achievements
-          SET dailyBoostUsed = 0, lastDailyBoost = '${today}'
-          WHERE userId='default'
-        `);
-        const updated = await db.getFirstAsync(
-          "SELECT * FROM achievements WHERE userId='default'"
-        );
-        setAchievements(updated);
-        setShowDailyBoost(true);
-        setTimeout(() => setShowDailyBoost(false), 3000);
-      }
-    } catch (err) {
-      console.error("checkDailyReset error:", err);
-    }
-  };
-
-  const buyStreakFreeze = async () => {
-    Alert.alert(
-      "Feature Coming Soon",
-      "Streak Freeze will be available in a future update!"
-    );
   };
 
   const getUnlockedAchievements = () => {
@@ -424,12 +288,6 @@ export default function Page() {
         value: achievements.totalCorrect || 0,
         icon: "check-circle",
         color: "#10b981",
-      },
-      {
-        label: "Streak Freezes",
-        value: achievements.streakFreeze || 0,
-        icon: "snow-outline",
-        color: "#06b6d4",
       },
     ];
   };
@@ -494,6 +352,55 @@ export default function Page() {
     </Animated.View>
   );
 
+  const TUTORIAL_STEPS = [
+    {
+      title: "Welcome to Article Trainer! 🎉",
+      description:
+        "Learn German articles (der, die, das) through quizzes and track your progress!",
+      icon: "rocket",
+      color: "#007AFF",
+    },
+    {
+      title: "Perfect Scores = Stars ⭐",
+      description:
+        "Get 20/20 in a quiz to earn a Perfect Score! These unlock ranks and achievements.",
+      icon: "star",
+      color: "#fbbf24",
+    },
+    {
+      title: "Rank System 🏆",
+      description: `Start as Student, progress through Scholar, Bachelor, Master, Doctor, and finally Professor!\n\n• Scholar: 1 star\n• Bachelor: 3 stars\n• Master: 5 stars\n• Doctor: 10 stars\n• Professor: 20 stars`,
+      icon: "trophy",
+      color: "#f59e0b",
+    },
+    {
+      title: "Daily Streaks 🔥",
+      description:
+        "Play every day to build your streak! Your longest streak is saved forever.",
+      icon: "fire",
+      color: "#f97316",
+    },
+    {
+      title: "Ready to Start?",
+      description:
+        "Tap 'Start Test' to begin your first quiz and earn your first star!",
+      icon: "play-circle",
+      color: "#34C759",
+    },
+  ];
+
+  const nextTutorialStep = () => {
+    if (tutorialStep < TUTORIAL_STEPS.length - 1) {
+      setTutorialStep(tutorialStep + 1);
+    } else {
+      completeTutorial();
+    }
+  };
+
+  const skipTutorial = () => {
+    completeTutorial();
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -507,13 +414,15 @@ export default function Page() {
             <Animated.View
               style={[styles.owlPulse, { transform: [{ scale: pulseAnim }] }]}
             />
-            <View style={styles.owlCircle}>
+            <View
+              style={[styles.owlCircle, { backgroundColor: currentRank.color }]}
+            >
               <OwlEmoji size={60} />
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Stats Row (replaces title) */}
+        {/* Stats Row */}
         {achievements && (
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
@@ -540,19 +449,7 @@ export default function Page() {
           </View>
         )}
 
-        {/* Daily Boost Chip */}
-        {showDailyBoost &&
-          achievements &&
-          achievements.dailyBoostUsed === 0 && (
-            <View style={styles.dailyBoostChip}>
-              <MaterialCommunityIcons name="flash" size={16} color="#fbbf24" />
-              <Text style={styles.dailyBoostText}>
-                Daily Boost Available (2x XP)
-              </Text>
-            </View>
-          )}
-
-        {/* Rank Progress Card */}
+        {/* Rank Progress Card WITH REMINDER */}
         {achievements && (
           <View style={styles.rankCard}>
             <View style={styles.rankHeader}>
@@ -563,33 +460,59 @@ export default function Page() {
                   <Text style={styles.nextRankLabel}>→ {nextRank.name}</Text>
                 )}
               </View>
+              {/* Tutorial button */}
+              <TouchableOpacity
+                onPress={() => setShowTutorial(true)}
+                style={styles.helpButton}
+              >
+                <MaterialCommunityIcons
+                  name="help-circle-outline"
+                  size={24}
+                  color="#007AFF"
+                />
+              </TouchableOpacity>
             </View>
 
             {perfectsUntilNext > 0 ? (
-              <View style={styles.progressSection}>
-                <View style={styles.progressHeader}>
-                  <Text style={styles.progressLabel}>
-                    Progress to {nextRank.name}
-                  </Text>
-                  <Text style={styles.quizzesLeft}>
-                    {perfectsUntilNext} more
+              <>
+                <View style={styles.progressSection}>
+                  <View style={styles.progressHeader}>
+                    <Text style={styles.progressLabel}>
+                      Progress to {nextRank.name}
+                    </Text>
+                    <Text style={styles.quizzesLeft}>
+                      {perfectsUntilNext} more
+                    </Text>
+                  </View>
+                  <View style={styles.progressBarContainer}>
+                    <Animated.View
+                      style={[
+                        styles.progressBar,
+                        {
+                          width: animatedWidth,
+                          backgroundColor: currentRank.color,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.progressText}>
+                    {progressPercent.toFixed(0)}%
                   </Text>
                 </View>
-                <View style={styles.progressBarContainer}>
-                  <Animated.View
-                    style={[
-                      styles.progressBar,
-                      {
-                        width: animatedWidth,
-                        backgroundColor: currentRank.color,
-                      },
-                    ]}
+                {/* REMINDER CHIP */}
+                <View style={styles.reminderChip}>
+                  <MaterialCommunityIcons
+                    name="lightbulb-on-outline"
+                    size={16}
+                    color="#f59e0b"
                   />
+                  <Text style={styles.reminderText}>
+                    Get {perfectsUntilNext} perfect score
+                    {perfectsUntilNext > 1 ? "s" : ""} (20/20) to become{" "}
+                    {nextRank.name}!
+                  </Text>
                 </View>
-                <Text style={styles.progressText}>
-                  {progressPercent.toFixed(0)}%
-                </Text>
-              </View>
+              </>
             ) : (
               <Text style={styles.maxRankText}>🎉 Max Rank Achieved!</Text>
             )}
@@ -620,7 +543,6 @@ export default function Page() {
             icon="play-circle"
             title="Start Test"
             onPress={() => router.push("/trainer")}
-            badge={achievements?.dailyBoostUsed === 0 ? "2x" : null}
           />
           <GridButton
             icon="book"
@@ -641,7 +563,6 @@ export default function Page() {
 
         {/* Secondary Actions */}
         <View style={styles.secondaryActions}>
-          {/*  */}
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={() => setShowAchievements(true)}
@@ -656,14 +577,6 @@ export default function Page() {
             <MaterialCommunityIcons name="trophy" size={20} color="#007AFF" />
             <Text style={styles.secondaryButtonText}>Your Stats</Text>
           </TouchableOpacity>
-          {/*     <TouchableOpacity style={styles.resetButton} onPress={resetDatabase}>
-            <MaterialCommunityIcons
-              name="database-remove"
-              size={20}
-              color="#ef4444"
-            />
-            <Text style={styles.resetText}>Reset Database</Text>
-          </TouchableOpacity> */}
         </View>
 
         <TouchableOpacity
@@ -685,6 +598,136 @@ export default function Page() {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Tutorial Modal */}
+      <Modal visible={showTutorial} animationType="slide" transparent>
+        <View style={styles.tutorialOverlay}>
+          <View style={styles.tutorialBox}>
+            <View style={styles.tutorialIconContainer}>
+              <MaterialCommunityIcons
+                name={TUTORIAL_STEPS[tutorialStep].icon}
+                size={60}
+                color={TUTORIAL_STEPS[tutorialStep].color}
+              />
+            </View>
+
+            <Text style={styles.tutorialTitle}>
+              {TUTORIAL_STEPS[tutorialStep].title}
+            </Text>
+
+            <Text style={styles.tutorialDescription}>
+              {TUTORIAL_STEPS[tutorialStep].description}
+            </Text>
+
+            {/* Progress dots */}
+            <View style={styles.tutorialDots}>
+              {TUTORIAL_STEPS.map((_, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.tutorialDot,
+                    idx === tutorialStep && styles.tutorialDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+
+            <View style={styles.tutorialButtons}>
+              {tutorialStep < TUTORIAL_STEPS.length - 1 ? (
+                <>
+                  <TouchableOpacity
+                    style={styles.tutorialSkipButton}
+                    onPress={skipTutorial}
+                  >
+                    <Text style={styles.tutorialSkipText}>Skip</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.tutorialNextButton}
+                    onPress={nextTutorialStep}
+                  >
+                    <Text style={styles.tutorialNextText}>Next</Text>
+                    <MaterialCommunityIcons
+                      name="arrow-right"
+                      size={20}
+                      color="#fff"
+                    />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  style={styles.tutorialStartButton}
+                  onPress={completeTutorial}
+                >
+                  <Text style={styles.tutorialStartText}>Let's Start!</Text>
+                  <MaterialCommunityIcons name="check" size={20} color="#fff" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Congratulations Modal for Rank Achievement */}
+      <Modal visible={showCongratulations} transparent animationType="slide">
+        <View style={styles.congratsOverlay}>
+          <Animated.View
+            style={[styles.congratsBox, { transform: [{ scale: scaleAnim }] }]}
+          >
+            {/* Animated Owl with new rank color */}
+            <View style={styles.congratsOwlContainer}>
+              <Animated.View
+                style={[
+                  styles.congratsOwlPulse,
+                  { transform: [{ scale: pulseAnim }] },
+                ]}
+              />
+              <View
+                style={[
+                  styles.congratsOwlCircle,
+                  { backgroundColor: congratsRank?.color || currentRank.color },
+                ]}
+              >
+                <OwlEmoji size={80} />
+              </View>
+            </View>
+
+            <MaterialCommunityIcons
+              name="trophy-award"
+              size={60}
+              color="#fbbf24"
+            />
+            <Text style={styles.congratsTitle}>🎉 Congratulations! 🎉</Text>
+            <Text style={styles.congratsMessage}>
+              You've achieved the rank of
+            </Text>
+            <View style={styles.congratsRankBadge}>
+              <Text style={styles.congratsRankEmoji}>
+                {congratsRank?.emoji || currentRank.emoji}
+              </Text>
+              <Text
+                style={[
+                  styles.congratsRankName,
+                  { color: congratsRank?.color || currentRank.color },
+                ]}
+              >
+                {congratsRank?.name || currentRank.name}
+              </Text>
+            </View>
+            <Text style={styles.congratsSubtext}>
+              Keep up the great work! Your owl is proud! 🦉
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.congratsButton,
+                { backgroundColor: congratsRank?.color || currentRank.color },
+              ]}
+              onPress={() => setShowCongratulations(false)}
+            >
+              <Text style={styles.congratsButtonText}>Continue Learning</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
 
       {/* Rank Up Modal */}
       <Modal visible={showRankPopup} transparent animationType="slide">
@@ -725,7 +768,11 @@ export default function Page() {
                 />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.leaderboardScroll}>
+            <ScrollView
+              style={styles.leaderboardScroll}
+              contentContainerStyle={styles.leaderboardScrollContent}
+              showsVerticalScrollIndicator={true}
+            >
               {getLeaderboardEntries().map((entry, idx) => (
                 <View key={idx} style={styles.leaderboardRow}>
                   <View style={styles.leaderboardLeft}>
@@ -744,13 +791,6 @@ export default function Page() {
                 </View>
               ))}
             </ScrollView>
-            {/*         <TouchableOpacity
-              style={styles.freezeButton}
-              onPress={buyStreakFreeze}
-            >
-              <MaterialCommunityIcons name="snowflake" size={20} color="#fff" />
-              <Text style={styles.freezeButtonText}>Buy Streak Freeze</Text>
-            </TouchableOpacity> */}
           </View>
         </View>
       </Modal>
@@ -769,7 +809,11 @@ export default function Page() {
                 />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.achievementsBoxScroll}>
+            <ScrollView
+              style={styles.achievementsBoxScroll}
+              contentContainerStyle={styles.achievementsScrollContent}
+              showsVerticalScrollIndicator={true}
+            >
               {ACHIEVEMENTS.map((ach, idx) => {
                 const isUnlocked = achievements && achievements[ach.id] === 1;
                 const progress = achievements
@@ -848,7 +892,6 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: "#FBBF24",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -886,22 +929,6 @@ const styles = StyleSheet.create({
     color: "#8E8E93",
     marginTop: 2,
   },
-  dailyBoostChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#FFF7E6",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 24,
-    alignSelf: "center",
-  },
-  dailyBoostText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#f59e0b",
-  },
   rankCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -936,6 +963,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 4,
   },
+  helpButton: {
+    padding: 8,
+  },
   progressSection: {},
   progressHeader: {
     flexDirection: "row",
@@ -956,6 +986,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#8E8E93",
     textAlign: "right",
+    marginBottom: 12,
+  },
+  reminderChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF7E6",
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#fbbf24",
+  },
+  reminderText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#f59e0b",
+    lineHeight: 18,
   },
   maxRankText: {
     fontSize: 16,
@@ -1055,6 +1103,104 @@ const styles = StyleSheet.create({
   rateText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
   bannerWrapper: { marginTop: 24 },
   bottomSpacer: { height: 80 },
+
+  // Tutorial styles
+  tutorialOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  tutorialBox: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 32,
+    width: "100%",
+    maxWidth: 400,
+    alignItems: "center",
+  },
+  tutorialIconContainer: {
+    marginBottom: 24,
+  },
+  tutorialTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1C1C1E",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  tutorialDescription: {
+    fontSize: 16,
+    color: "#8E8E93",
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  tutorialDots: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 24,
+  },
+  tutorialDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#E5E5EA",
+  },
+  tutorialDotActive: {
+    backgroundColor: "#007AFF",
+    width: 24,
+  },
+  tutorialButtons: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  tutorialSkipButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#F2F2F7",
+    alignItems: "center",
+  },
+  tutorialSkipText: {
+    color: "#8E8E93",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  tutorialNextButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#007AFF",
+  },
+  tutorialNextText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  tutorialStartButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#34C759",
+  },
+  tutorialStartText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+
+  // Other modals
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -1097,15 +1243,24 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 24,
+    maxHeight: "75%",
   },
   leaderboardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5EA",
   },
   leaderboardTitle: { fontSize: 20, fontWeight: "bold", color: "#1C1C1E" },
-  leaderboardScroll: { maxHeight: 300 },
+  leaderboardScroll: {
+    maxHeight: 500,
+  },
+  leaderboardScrollContent: {
+    paddingBottom: 20,
+  },
   leaderboardRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1121,36 +1276,34 @@ const styles = StyleSheet.create({
   },
   leaderboardLabel: { fontSize: 15, color: "#8E8E93", fontWeight: "500" },
   leaderboardValue: { fontSize: 16, fontWeight: "600" },
-  freezeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#007AFF",
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginTop: 16,
-  },
-  freezeButtonText: { color: "#fff", fontSize: 15, fontWeight: "600" },
   achievementsBox: {
     width: "100%",
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 24,
+    maxHeight: "75%",
   },
   achievementsHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5EA",
   },
   achievementsBoxTitle: { fontSize: 20, fontWeight: "bold", color: "#1C1C1E" },
-  achievementsBoxScroll: { maxHeight: 400 },
+  achievementsBoxScroll: {
+    maxHeight: 400,
+  },
+  achievementsScrollContent: {
+    paddingBottom: 24,
+  },
   achievementItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E5EA",
   },
@@ -1169,22 +1322,104 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#8E8E93",
   },
-  // 4. STYLES HINZUFÜGEN (in StyleSheet.create)
-  resetButton: {
-    flexDirection: "row",
+
+  // Congratulations Modal Styles
+  congratsOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  congratsBox: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 32,
+    padding: 40,
+    width: "100%",
+    maxWidth: 400,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  congratsOwlContainer: {
+    width: 120,
+    height: 120,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#fee2e2",
-    paddingVertical: 16,
-    borderRadius: 16,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: "#fecaca",
+    marginBottom: 20,
   },
-  resetText: {
-    color: "#ef4444",
-    fontSize: 15,
-    fontWeight: "600",
+  congratsOwlPulse: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(251, 191, 36, 0.3)",
+  },
+  congratsOwlCircle: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  congratsTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#1C1C1E",
+    textAlign: "center",
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  congratsMessage: {
+    fontSize: 16,
+    color: "#8E8E93",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  congratsRankBadge: {
+    backgroundColor: "#F2F2F7",
+    paddingHorizontal: 32,
+    paddingVertical: 20,
+    borderRadius: 20,
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "#E5E5EA",
+  },
+  congratsRankEmoji: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  congratsRankName: {
+    fontSize: 32,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  congratsSubtext: {
+    fontSize: 14,
+    color: "#8E8E93",
+    textAlign: "center",
+    marginBottom: 28,
+    lineHeight: 20,
+  },
+  congratsButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 48,
+    borderRadius: 16,
+    width: "100%",
+    alignItems: "center",
+  },
+  congratsButtonText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "700",
   },
 });
