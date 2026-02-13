@@ -84,7 +84,7 @@ const App = () => {
         `);
       } else {
         const hasNewColumns = tableInfo.some(
-          (col) => col.name === "highestScore"
+          (col) => col.name === "highestScore",
         );
 
         if (!hasNewColumns) {
@@ -124,7 +124,7 @@ const App = () => {
       // Check if word already exists
       const existing = await db.getFirstAsync(
         `SELECT * FROM failed_words WHERE word = ? AND correctArticle = ?`,
-        [word, correctArticle]
+        [word, correctArticle],
       );
 
       if (existing) {
@@ -135,14 +135,14 @@ const App = () => {
                wrongArticle = ?,
                lastFailed = ?
            WHERE word = ? AND correctArticle = ?`,
-          [wrongArticle, new Date().toISOString(), word, correctArticle]
+          [wrongArticle, new Date().toISOString(), word, correctArticle],
         );
       } else {
         // Insert new failed word
         await db.runAsync(
           `INSERT INTO failed_words (word, correctArticle, wrongArticle, lastFailed)
            VALUES (?, ?, ?, ?)`,
-          [word, correctArticle, wrongArticle, new Date().toISOString()]
+          [word, correctArticle, wrongArticle, new Date().toISOString()],
         );
       }
     } catch (error) {
@@ -197,11 +197,11 @@ const App = () => {
       await saveFailedWord(
         currentQuestion.question,
         currentQuestion.correctAnswer,
-        article
+        article,
       );
 
       failureData.push(
-        `${article} ${currentQuestion.question} => ✔️ ${currentQuestion.correctAnswer} ${currentQuestion.question}`
+        `${article} ${currentQuestion.question} => ✔️ ${currentQuestion.correctAnswer} ${currentQuestion.question}`,
       );
     }
 
@@ -210,7 +210,7 @@ const App = () => {
 
       const sessionEndTime = Date.now();
       const sessionDuration = Math.round(
-        (sessionEndTime - sessionStartTime) / 1000
+        (sessionEndTime - sessionStartTime) / 1000,
       );
       const progress = ((newScore / quizData.length) * 100).toFixed(1);
       const isPerfect = newScore === quizData.length;
@@ -232,8 +232,8 @@ const App = () => {
         await db.execAsync(`
           INSERT INTO statistics (date, totalReviewed, correctAnswers, fails, progressPercent, sessionTime)
           VALUES ('${new Date().toISOString()}', ${
-          quizData.length
-        }, ${newScore}, ${newFails}, ${progress}, ${sessionDuration});
+            quizData.length
+          }, ${newScore}, ${newFails}, ${progress}, ${sessionDuration});
         `);
         console.log("✅ Statistics saved");
 
@@ -243,7 +243,7 @@ const App = () => {
           newScore,
           newFails,
           sessionDuration,
-          isPerfect
+          isPerfect,
         );
       } catch (error) {
         console.error("❌ Save error:", error);
@@ -275,13 +275,13 @@ const App = () => {
     correctAnswers,
     failsCount,
     sessionTime,
-    isPerfect
+    isPerfect,
   ) => {
     try {
       await ensureAchievementsTable();
 
       const currentAch = await db.getFirstAsync(
-        "SELECT * FROM achievements WHERE userId='default'"
+        "SELECT * FROM achievements WHERE userId='default'",
       );
 
       if (!currentAch) {
@@ -300,7 +300,7 @@ const App = () => {
       // Update highest score
       const newHighestScore = Math.max(
         currentAch.highestScore || 0,
-        correctAnswers
+        correctAnswers,
       );
 
       // Update fastest time (only if score > 0)
@@ -423,7 +423,7 @@ const App = () => {
           return true;
         }
         return false;
-      }
+      },
     );
     return () => backHandler.remove();
   }, [showModal]);
