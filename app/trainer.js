@@ -9,6 +9,7 @@ import {
   Image,
   Animated,
   ScrollView,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -20,6 +21,14 @@ import "expo-dev-client";
 import { quizMainData } from "./words";
 import ABanner from "./banner";
 import { openDatabaseSync } from "expo-sqlite";
+import {
+  initializeSubscriptionTables,
+  canStartQuiz,
+  incrementQuizCount,
+  getSubscriptionStatus,
+  hasFeatureAccess,
+  FEATURES,
+} from "./subscriptionManager";
 
 const db = openDatabaseSync("appdata.db");
 
@@ -32,6 +41,10 @@ const ACHIEVEMENTS = [
 
 const App = () => {
   const [sessionStartTime, setSessionStartTime] = useState(Date.now());
+  const [questionStartTime, setQuestionStartTime] = useState(Date.now());
+  const [questionTimes, setQuestionTimes] = useState([]);
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [bestStreakInSession, setBestStreakInSession] = useState(0);
   const [count, setCount] = useState(0);
   const [score, setScore] = useState(0);
   const [fails, setFails] = useState(0);
@@ -45,6 +58,9 @@ const App = () => {
   const [failureData, setFailureData] = useState([]);
   const [correctData, setCorrectData] = useState([]);
   const [fadeAnim] = useState(new Animated.Value(1));
+  const [subscription, setSubscription] = useState(null);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [quizzesLeft, setQuizzesLeft] = useState(0);
   const router = useRouter();
 
   const initialQuiz = () =>
@@ -52,6 +68,28 @@ const App = () => {
 
   const [quizData, setQuizData] = useState(initialQuiz());
   const [lastQuizData, setLastQuizData] = useState(quizData);
+
+  useEffect(() => {
+    initializeApp();
+  }, []);
+
+  const initializeApp = async () => {
+    await initializeSubscriptionTables();
+    await checkQuizAccess();
+    await ensureAchievementsTable();
+  };
+
+  const checkQuizAccess = async () => {
+    const quizAccess = await canStartQuiz();
+    const subStatus = await getSubscriptionStatus();
+
+    setSubscription(subStatus);
+    setQuizzesLeft(quizAccess.quizzesLeft);
+
+    if (!quizAccess.canStart) {
+      setShowLimitModal(true);
+    }
+  };
 
   const ensureAchievementsTable = async () => {
     try {
@@ -121,14 +159,12 @@ const App = () => {
     try {
       await ensureFailedWordsTable();
 
-      // Check if word already exists
       const existing = await db.getFirstAsync(
         `SELECT * FROM failed_words WHERE word = ? AND correctArticle = ?`,
         [word, correctArticle],
       );
 
       if (existing) {
-        // Update fail count
         await db.runAsync(
           `UPDATE failed_words 
            SET failCount = failCount + 1, 
@@ -138,7 +174,6 @@ const App = () => {
           [wrongArticle, new Date().toISOString(), word, correctArticle],
         );
       } else {
-        // Insert new failed word
         await db.runAsync(
           `INSERT INTO failed_words (word, correctArticle, wrongArticle, lastFailed)
            VALUES (?, ?, ?, ?)`,
@@ -176,6 +211,11 @@ const App = () => {
   };
 
   const handleAnswer = async (article) => {
+    const questionEndTime = Date.now();
+    const timeSpent = Math.round((questionEndTime - questionStartTime) / 1000);
+    const newQuestionTimes = [...questionTimes, timeSpent];
+    setQuestionTimes(newQuestionTimes);
+
     setSelectedAnswer(article);
     setCount((prev) => prev + 1);
     if (showModal) setButtonDisabled(true);
@@ -183,17 +223,27 @@ const App = () => {
     const currentQuestion = quizData[currentQuestionIndex];
     let newFails = fails;
     let newScore = score;
+    let newStreak = currentStreak;
 
     if (currentQuestion.correctAnswer === article) {
       newScore++;
       setScore(newScore);
+      newStreak++;
+      setCurrentStreak(newStreak);
+
+      if (newStreak > bestStreakInSession) {
+        setBestStreakInSession(newStreak);
+      }
+
       correctData.push(article + " " + currentQuestion.question);
     } else {
       newFails++;
       setFails(newFails);
       setIsWrong(true);
 
-      // Save failed word to database
+      newStreak = 0;
+      setCurrentStreak(0);
+
       await saveFailedWord(
         currentQuestion.question,
         currentQuestion.correctAnswer,
@@ -215,8 +265,19 @@ const App = () => {
       const progress = ((newScore / quizData.length) * 100).toFixed(1);
       const isPerfect = newScore === quizData.length;
 
+      const avgTime =
+        newQuestionTimes.length > 0
+          ? Math.round(
+              newQuestionTimes.reduce((a, b) => a + b, 0) /
+                newQuestionTimes.length,
+            )
+          : 0;
+      const fastestTime =
+        newQuestionTimes.length > 0 ? Math.min(...newQuestionTimes) : 0;
+      const slowestTime =
+        newQuestionTimes.length > 0 ? Math.max(...newQuestionTimes) : 0;
+
       try {
-        // 1. Save to statistics table (session history)
         await db.execAsync(`
           CREATE TABLE IF NOT EXISTS statistics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -225,19 +286,28 @@ const App = () => {
             correctAnswers INTEGER,
             fails INTEGER,
             progressPercent REAL,
-            sessionTime INTEGER
+            sessionTime INTEGER,
+            bestStreak INTEGER DEFAULT 0,
+            avgTimePerQuestion INTEGER DEFAULT 0,
+            fastestQuestion INTEGER DEFAULT 0,
+            slowestQuestion INTEGER DEFAULT 0
           );
         `);
 
         await db.execAsync(`
-          INSERT INTO statistics (date, totalReviewed, correctAnswers, fails, progressPercent, sessionTime)
-          VALUES ('${new Date().toISOString()}', ${
-            quizData.length
-          }, ${newScore}, ${newFails}, ${progress}, ${sessionDuration});
+          INSERT INTO statistics (
+            date, totalReviewed, correctAnswers, fails, 
+            progressPercent, sessionTime, bestStreak,
+            avgTimePerQuestion, fastestQuestion, slowestQuestion
+          )
+          VALUES (
+            '${new Date().toISOString()}', ${quizData.length}, 
+            ${newScore}, ${newFails}, ${progress}, ${sessionDuration},
+            ${bestStreakInSession}, ${avgTime}, ${fastestTime}, ${slowestTime}
+          );
         `);
-        console.log("✅ Statistics saved");
+        console.log("✅ Statistics saved with advanced metrics");
 
-        // 2. Update achievements table
         await updateAchievements(
           quizData.length,
           newScore,
@@ -245,6 +315,9 @@ const App = () => {
           sessionDuration,
           isPerfect,
         );
+
+        await incrementQuizCount();
+        await checkQuizAccess();
       } catch (error) {
         console.error("❌ Save error:", error);
       }
@@ -266,6 +339,7 @@ const App = () => {
         setSelectedAnswer(null);
         setIsWrong(false);
         setCurrentQuestionIndex((prev) => prev + 1);
+        setQuestionStartTime(Date.now());
       }, 300);
     }
   };
@@ -289,7 +363,6 @@ const App = () => {
         return;
       }
 
-      // Calculate new values
       const newTotalQuizzes = (currentAch.totalQuizzes || 0) + 1;
       const newTotalCorrect = (currentAch.totalCorrect || 0) + correctAnswers;
       const newTotalQuestions =
@@ -297,13 +370,11 @@ const App = () => {
       const newPerfectScores =
         (currentAch.perfectScores || 0) + (isPerfect ? 1 : 0);
 
-      // Update highest score
       const newHighestScore = Math.max(
         currentAch.highestScore || 0,
         correctAnswers,
       );
 
-      // Update fastest time (only if score > 0)
       let newFastestTime = currentAch.fastestTime || 0;
       if (correctAnswers > 0) {
         if (newFastestTime === 0 || sessionTime < newFastestTime) {
@@ -311,156 +382,152 @@ const App = () => {
         }
       }
 
-      // Update streak
       const today = new Date().toISOString().split("T")[0];
       const lastPlayed = currentAch.lastPlayedDate
-        ? new Date(currentAch.lastPlayedDate).toISOString().split("T")[0]
+        ? currentAch.lastPlayedDate.split("T")[0]
         : null;
 
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .split("T")[0];
+
       let newConsecutiveDays = currentAch.consecutiveDays || 0;
-      let newLongestStreak = currentAch.longestStreak || 0;
-
-      if (!lastPlayed) {
-        newConsecutiveDays = 1;
+      if (!lastPlayed || lastPlayed === today) {
+        newConsecutiveDays = currentAch.consecutiveDays || 1;
+      } else if (lastPlayed === yesterday) {
+        newConsecutiveDays = (currentAch.consecutiveDays || 0) + 1;
       } else {
-        const lastPlayedDate = new Date(lastPlayed);
-        const todayDate = new Date(today);
-        const diffTime = todayDate - lastPlayedDate;
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays === 0) {
-          // Same day - no change
-        } else if (diffDays === 1) {
-          // Consecutive day
-          newConsecutiveDays++;
-        } else if (diffDays > 1) {
-          // Streak broken - reset
-          newConsecutiveDays = 1;
-        }
+        newConsecutiveDays = 1;
       }
 
-      if (newConsecutiveDays > newLongestStreak) {
-        newLongestStreak = newConsecutiveDays;
-      }
+      let newAchievementFirstStar = currentAch.achievementFirstStar || 0;
+      let newAchievementGoldenStudent =
+        currentAch.achievementGoldenStudent || 0;
+      let newAchievementDoctoralAward =
+        currentAch.achievementDoctoralAward || 0;
+      let newAchievementProfessorBadge =
+        currentAch.achievementProfessorBadge || 0;
 
-      // Check and unlock achievements
-      const achievementUpdates = {};
-      ACHIEVEMENTS.forEach((ach) => {
-        if (newPerfectScores >= ach.requirement && currentAch[ach.id] === 0) {
-          achievementUpdates[ach.id] = 1;
-          console.log(`🎉 Achievement unlocked: ${ach.id}`);
+      ACHIEVEMENTS.forEach((achievement) => {
+        if (newPerfectScores >= achievement.requirement) {
+          if (achievement.id === "achievementFirstStar") {
+            newAchievementFirstStar = 1;
+          } else if (achievement.id === "achievementGoldenStudent") {
+            newAchievementGoldenStudent = 1;
+          } else if (achievement.id === "achievementDoctoralAward") {
+            newAchievementDoctoralAward = 1;
+          } else if (achievement.id === "achievementProfessorBadge") {
+            newAchievementProfessorBadge = 1;
+          }
         }
       });
 
-      // Build SQL update
-      const achievementFields = Object.entries(achievementUpdates)
-        .map(([key, value]) => `${key} = ${value}`)
-        .join(", ");
-
-      const baseUpdate = `
-        totalQuizzes = ${newTotalQuizzes},
-        totalCorrect = ${newTotalCorrect},
-        totalQuestions = ${newTotalQuestions},
-        perfectScores = ${newPerfectScores},
-        consecutiveDays = ${newConsecutiveDays},
-        longestStreak = ${newLongestStreak},
-        lastPlayedDate = '${new Date().toISOString()}',
-        highestScore = ${newHighestScore},
-        fastestTime = ${newFastestTime}
-      `;
-
-      // Combine all updates, filtering out empty strings
-      const allUpdates = [baseUpdate, achievementFields]
-        .filter((s) => s && s.trim())
-        .join(", ");
-
       await db.execAsync(`
         UPDATE achievements
-        SET ${allUpdates}
-        WHERE userId='default'
+        SET totalQuizzes = ${newTotalQuizzes},
+            totalCorrect = ${newTotalCorrect},
+            totalQuestions = ${newTotalQuestions},
+            perfectScores = ${newPerfectScores},
+            lastPlayedDate = '${new Date().toISOString()}',
+            consecutiveDays = ${newConsecutiveDays},
+            achievementFirstStar = ${newAchievementFirstStar},
+            achievementGoldenStudent = ${newAchievementGoldenStudent},
+            achievementDoctoralAward = ${newAchievementDoctoralAward},
+            achievementProfessorBadge = ${newAchievementProfessorBadge},
+            highestScore = ${newHighestScore},
+            fastestTime = ${newFastestTime}
+        WHERE userId = 'default';
       `);
 
       console.log("✅ Achievements updated");
-      console.log(`📊 Quiz: ${newTotalQuizzes}, Perfect: ${newPerfectScores}`);
-      console.log(`🔥 Streak: ${newConsecutiveDays} days`);
     } catch (error) {
       console.error("❌ updateAchievements error:", error);
     }
   };
 
-  useEffect(() => {
-    try {
-      speakWord();
-    } catch (error) {
-      console.error("speakword : " + error);
-    }
-  }, [currentQuestionIndex]);
+  const handleMenu = () => {
+    Speech.stop();
+    setShowModal(false);
+    router.back();
+  };
 
-  const resetQuiz = () => {
-    const newQuiz = initialQuiz();
-    setSessionStartTime(Date.now());
-    setCount(0);
+  const handleRetry = () => {
+    Speech.stop();
+    setQuizData(lastQuizData);
     setScore(0);
     setFails(0);
+    setCount(0);
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
-    setIsWrong(false);
-    setQuizData(newQuiz);
-    setLastQuizData(newQuiz);
     setFailureData([]);
     setCorrectData([]);
     setShowModal(false);
+    setButtonDisabled(false);
+    setSessionStartTime(Date.now());
+    setQuestionStartTime(Date.now());
+    setQuestionTimes([]);
+    setCurrentStreak(0);
+    setBestStreakInSession(0);
   };
 
-  const handleMenu = () => router.back();
+  const handleNewQuiz = () => {
+    Speech.stop();
+    const newQuiz = initialQuiz();
+    setQuizData(newQuiz);
+    setLastQuizData(newQuiz);
+    setScore(0);
+    setFails(0);
+    setCount(0);
+    setCurrentQuestionIndex(0);
+    setSelectedAnswer(null);
+    setFailureData([]);
+    setCorrectData([]);
+    setShowModal(false);
+    setButtonDisabled(false);
+    setSessionStartTime(Date.now());
+    setQuestionStartTime(Date.now());
+    setQuestionTimes([]);
+    setCurrentStreak(0);
+    setBestStreakInSession(0);
+  };
 
   useEffect(() => {
+    const backAction = () => {
+      if (showModal) {
+        handleMenu();
+        return true;
+      }
+      return false;
+    };
+
     const backHandler = BackHandler.addEventListener(
       "hardwareBackPress",
-      () => {
-        if (showModal) {
-          setShowModal(false);
-          return true;
-        }
-        return false;
-      },
+      backAction,
     );
+
     return () => backHandler.remove();
   }, [showModal]);
 
-  const getRewardMessage = (score) => {
-    const isPerfect = score === quizData.length;
+  if (currentQuestionIndex >= quizData.length) {
+    return null;
+  }
 
-    if (isPerfect) {
-      return "🎉 PERFEKT! +1 ⭐ STERN VERDIENT!\nSammle Sterne, um vom Student zum Professor aufzusteigen! 🦉";
-    }
-    if (score >= 18) {
-      return "Sooo nah dran! 🔥\n20/20 = 1 Stern = Rangaufstieg!";
-    }
-    if (score >= 15) {
-      return "Super! 🌟🌟🌟\nPerfekte Scores bringen dich zum nächsten Rang!";
-    }
-    if (score >= 10) {
-      return "Gut! 🌟🌟\n20/20 Scores sammeln Sterne für deinen Rang!";
-    }
-    if (score >= 5) {
-      return "Ordentlich! 🌟\nStrebe nach perfekten Scores!";
-    }
-    return "Weiter so! ⭐\nDein Weg zum Professor beginnt hier!";
-  };
+  const currentQuestion = quizData[currentQuestionIndex];
   const progressPercentage =
     ((currentQuestionIndex + 1) / quizData.length) * 100;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Modern Header with Progress */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.iconButton} onPress={toggleSound}>
-            <FontAwesome
-              name={isSoundOn ? "volume-up" : "volume-off"}
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={handleButtonClick(toggleSound)}
+          >
+            <MaterialCommunityIcons
+              name={isSoundOn ? "volume-high" : "volume-off"}
               size={24}
-              color="#6366f1"
+              color="#475569"
             />
           </TouchableOpacity>
 
@@ -476,56 +543,70 @@ const App = () => {
                 ]}
               />
             </View>
+            {!subscription?.isPremium && !subscription?.isInTrial && (
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: "#64748b",
+                  textAlign: "center",
+                  marginTop: 4,
+                }}
+              >
+                {quizzesLeft} quizzes left today
+              </Text>
+            )}
           </View>
 
-          <TouchableOpacity style={styles.iconButton} onPress={handleMenu}>
-            <MaterialCommunityIcons name="home" size={24} color="#6366f1" />
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={handleButtonClick(handleMenu)}
+          >
+            <MaterialCommunityIcons name="close" size={24} color="#475569" />
           </TouchableOpacity>
         </View>
 
-        {/* Quiz Content with Animation */}
         <Animated.View style={[styles.quizContent, { opacity: fadeAnim }]}>
-          <TouchableOpacity
-            onPress={speakWord}
-            activeOpacity={0.8}
-            style={styles.imageContainer}
-          >
-            <Image
-              source={
-                quizData[currentQuestionIndex]?.image
-                  ? quizData[currentQuestionIndex]?.image
-                  : require("./images/end.png")
-              }
-              style={styles.image}
-            />
-            <View style={styles.speakHint}>
-              <FontAwesome name="volume-up" size={16} color="#6366f1" />
-              <Text style={styles.speakHintText}>Tap to hear</Text>
+          {currentQuestion?.image && (
+            <View style={styles.imageContainer}>
+              <Image
+                source={currentQuestion.image}
+                style={styles.image}
+                resizeMode="cover"
+              />
+              <TouchableOpacity style={styles.speakHint} onPress={speakWord}>
+                <MaterialCommunityIcons
+                  name="volume-high"
+                  size={16}
+                  color="#6366f1"
+                />
+                <Text style={styles.speakHintText}>
+                  Tap to hear pronunciation
+                </Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          )}
 
           <View style={styles.wordContainer}>
-            <Text style={styles.word}>
-              {quizData[currentQuestionIndex]?.question}
-            </Text>
-            <Text style={styles.englword}>
-              {quizData[currentQuestionIndex]?.englishName}
-            </Text>
+            <Text style={styles.word}>{currentQuestion?.question}</Text>
+            <Text style={styles.englword}>{currentQuestion?.englishName}</Text>
           </View>
         </Animated.View>
 
-        {/* Modern Answer Buttons */}
         <View style={styles.buttonContainer}>
           {["der", "die", "das"].map((article) => (
             <TouchableOpacity
               key={article}
               style={[
                 styles.answerButton,
-                selectedAnswer === article && styles.selectedButton,
-                selectedAnswer === article && isWrong && styles.wrongButton,
+                selectedAnswer === article &&
+                  currentQuestion.correctAnswer === article &&
+                  styles.selectedButton,
+                selectedAnswer === article &&
+                  currentQuestion.correctAnswer !== article &&
+                  styles.wrongButton,
               ]}
               onPress={handleButtonClick(() => handleAnswer(article))}
-              activeOpacity={0.7}
+              disabled={selectedAnswer !== null}
             >
               <Text
                 style={[
@@ -539,12 +620,18 @@ const App = () => {
           ))}
         </View>
 
-        <View style={styles.bannerContainer}>
-          <ABanner />
-        </View>
+        {!subscription?.isPremium && !subscription?.isInTrial && (
+          <View style={styles.bannerContainer}>
+            <ABanner />
+          </View>
+        )}
 
-        {/* Modern Modal */}
-        <Modal visible={showModal} animationType="fade" transparent>
+        <Modal
+          visible={showModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={handleMenu}
+        >
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
               <ScrollView
@@ -557,14 +644,28 @@ const App = () => {
                     name={
                       score === quizData.length
                         ? "trophy-award"
-                        : "check-decagram"
+                        : score >= quizData.length * 0.7
+                          ? "emoticon-happy"
+                          : "emoticon"
                     }
-                    size={80}
-                    color={score === quizData.length ? "#fbbf24" : "#10b981"}
+                    size={64}
+                    color={
+                      score === quizData.length
+                        ? "#fbbf24"
+                        : score >= quizData.length * 0.7
+                          ? "#10b981"
+                          : "#6366f1"
+                    }
                   />
                 </View>
 
-                <Text style={styles.modalTitle}>Quiz abgeschlossen!</Text>
+                <Text style={styles.modalTitle}>
+                  {score === quizData.length
+                    ? "Perfect Score! 🎉"
+                    : score >= quizData.length * 0.7
+                      ? "Great Job! 👏"
+                      : "Keep Practicing! 💪"}
+                </Text>
 
                 <View style={styles.scoreCard}>
                   <Text style={styles.modalScoreNumber}>{score}</Text>
@@ -573,18 +674,18 @@ const App = () => {
                 </View>
 
                 <Text style={styles.modalSubtitle}>
-                  {getRewardMessage(score)}
+                  {score === quizData.length
+                    ? "You're a German article master!"
+                    : `You got ${((score / quizData.length) * 100).toFixed(0)}% correct!`}
                 </Text>
 
-                {failureData.length > 0 && (
+                {fails > 0 && (
                   <View style={styles.modalWrongAnswers}>
                     <Text style={styles.modalWrongAnswersTitle}>
-                      Fehleranalyse
+                      Review Mistakes ({fails})
                     </Text>
-                    {failureData.map((wrongAnswer, index) => {
-                      const parts = wrongAnswer.split("=>");
-                      const correctAnsw = parts[1]?.trim();
-                      const wrongAnsw = parts[0]?.trim();
+                    {failureData.map((item, index) => {
+                      const parts = item.split(" => ");
                       return (
                         <View key={index} style={styles.wrongItem}>
                           <View style={styles.wrongItemRow}>
@@ -593,7 +694,7 @@ const App = () => {
                               size={16}
                               color="#ef4444"
                             />
-                            <Text style={styles.wrongText}>{wrongAnsw}</Text>
+                            <Text style={styles.wrongText}>{parts[0]}</Text>
                           </View>
                           <View style={styles.correctItemRow}>
                             <MaterialCommunityIcons
@@ -601,9 +702,7 @@ const App = () => {
                               size={16}
                               color="#10b981"
                             />
-                            <Text style={styles.correctText}>
-                              {correctAnsw}
-                            </Text>
+                            <Text style={styles.correctText}>{parts[1]}</Text>
                           </View>
                         </View>
                       );
@@ -614,14 +713,28 @@ const App = () => {
                 <View style={styles.modalButtons}>
                   <TouchableOpacity
                     style={[styles.modalButton, styles.primaryButton]}
-                    onPress={resetQuiz}
+                    onPress={handleNewQuiz}
                   >
                     <MaterialCommunityIcons
                       name="refresh"
                       size={20}
                       color="#fff"
                     />
-                    <Text style={styles.primaryButtonText}>Neues Quiz</Text>
+                    <Text style={styles.primaryButtonText}>New Quiz</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.primaryButton]}
+                    onPress={handleRetry}
+                  >
+                    <MaterialCommunityIcons
+                      name="replay"
+                      size={20}
+                      color="#fff"
+                    />
+                    <Text style={styles.primaryButtonText}>
+                      Retry Same Quiz
+                    </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -632,6 +745,78 @@ const App = () => {
                   </TouchableOpacity>
                 </View>
               </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal visible={showLimitModal} transparent={true} animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { maxHeight: undefined }]}>
+              <View style={{ padding: 32, alignItems: "center" }}>
+                <MaterialCommunityIcons
+                  name="lock-clock"
+                  size={64}
+                  color="#f59e0b"
+                />
+                <Text style={styles.modalTitle}>Daily Limit Reached</Text>
+                <Text style={styles.modalSubtitle}>
+                  You've completed {5 - quizzesLeft} out of 5 free quizzes
+                  today.
+                </Text>
+
+                {subscription?.isInTrial && (
+                  <View
+                    style={{
+                      backgroundColor: "#fef3c7",
+                      padding: 16,
+                      borderRadius: 12,
+                      marginVertical: 16,
+                      width: "100%",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: "#92400e",
+                        textAlign: "center",
+                        fontWeight: "600",
+                      }}
+                    >
+                      🎉 You have {subscription.daysLeftInTrial} days left in
+                      your free trial!
+                    </Text>
+                  </View>
+                )}
+
+                <View style={{ width: "100%", gap: 12, marginTop: 16 }}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.primaryButton]}
+                    onPress={() => {
+                      setShowLimitModal(false);
+                      router.push("/SubscriptionScreen");
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="crown"
+                      size={20}
+                      color="#fff"
+                    />
+                    <Text style={styles.primaryButtonText}>
+                      Go Premium - Unlimited Quizzes
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.textButton}
+                    onPress={() => {
+                      setShowLimitModal(false);
+                      router.back();
+                    }}
+                  >
+                    <Text style={styles.textButtonText}>Back to Menu</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           </View>
         </Modal>

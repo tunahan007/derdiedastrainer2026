@@ -11,11 +11,12 @@ import {
   Alert,
 } from "react-native";
 import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import * as Speech from "expo-speech";
 import { openDatabaseSync } from "expo-sqlite";
 import ABanner from "./banner";
 import { OwlEmoji } from "./images/OwlIcon";
+import SubscriptionScreen from "./SubscriptionScreen";
 
 const db = openDatabaseSync("appdata.db");
 
@@ -94,7 +95,7 @@ export default function Page() {
           duration: 1000,
           useNativeDriver: true,
         }),
-      ])
+      ]),
     ).start();
   }, []);
 
@@ -111,7 +112,7 @@ export default function Page() {
   const ensureTables = async () => {
     try {
       const achTableInfo = await db.getAllAsync(
-        `PRAGMA table_info(achievements)`
+        `PRAGMA table_info(achievements)`,
       );
 
       if (achTableInfo.length === 0) {
@@ -138,7 +139,7 @@ export default function Page() {
       } else {
         // Check if tutorialCompleted column exists
         const hasTutorial = achTableInfo.some(
-          (col) => col.name === "tutorialCompleted"
+          (col) => col.name === "tutorialCompleted",
         );
         if (!hasTutorial) {
           await db.execAsync(`
@@ -155,7 +156,7 @@ export default function Page() {
     try {
       await ensureTables();
       const row = await db.getFirstAsync(
-        "SELECT * FROM achievements WHERE userId='default'"
+        "SELECT * FROM achievements WHERE userId='default'",
       );
 
       if (!row) {
@@ -164,7 +165,7 @@ export default function Page() {
           VALUES ('default', '${new Date().toISOString()}', 0);
         `);
         const created = await db.getFirstAsync(
-          "SELECT * FROM achievements WHERE userId='default'"
+          "SELECT * FROM achievements WHERE userId='default'",
         );
         setAchievements(created);
         calculateRank(created.perfectScores || 0);
@@ -314,13 +315,13 @@ export default function Page() {
 
   const openPlayStore = () => {
     Linking.openURL(
-      "https://play.google.com/store/apps/details?id=com.tunakhan007.derdiedastrainer&pcampaignid=web_share"
+      "https://play.google.com/store/apps/details?id=com.tunakhan007.derdiedastrainer&pcampaignid=web_share",
     );
   };
 
   const openPlayStoreApps = () => {
     Linking.openURL(
-      "https://play.google.com/store/apps/developer?id=FocusSoftware"
+      "https://play.google.com/store/apps/developer?id=FocusSoftware",
     );
   };
 
@@ -666,7 +667,6 @@ export default function Page() {
           </View>
         </View>
       </Modal>
-
       {/* Congratulations Modal for Rank Achievement */}
       <Modal visible={showCongratulations} transparent animationType="slide">
         <View style={styles.congratsOverlay}>
@@ -728,7 +728,6 @@ export default function Page() {
           </Animated.View>
         </View>
       </Modal>
-
       {/* Rank Up Modal */}
       <Modal visible={showRankPopup} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -753,7 +752,6 @@ export default function Page() {
           </Animated.View>
         </View>
       </Modal>
-
       {/* Leaderboard Modal */}
       <Modal visible={showLeaderboard} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -794,7 +792,6 @@ export default function Page() {
           </View>
         </View>
       </Modal>
-
       {/* Achievements Modal */}
       <Modal visible={showAchievements} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
