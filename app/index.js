@@ -11,12 +11,13 @@ import {
   Alert,
 } from "react-native";
 import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter, Stack } from "expo-router";
+import { useRouter, Stack, useFocusEffect } from "expo-router";
 import * as Speech from "expo-speech";
 import { openDatabaseSync } from "expo-sqlite";
 import ABanner from "./banner";
 import { OwlEmoji } from "./images/OwlIcon";
 import SubscriptionScreen from "./SubscriptionScreen";
+import { useCallback } from "react";
 
 const db = openDatabaseSync("appdata.db");
 
@@ -25,8 +26,8 @@ const RANKS = [
   { minPerfect: 1, name: "Scholar", color: "#60a5fa", emoji: "🎓" },
   { minPerfect: 3, name: "Bachelor", color: "#8b5cf6", emoji: "🎓⭐" },
   { minPerfect: 5, name: "Master", color: "#10b981", emoji: "🎓⭐⭐" },
-  { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "🧪👨‍🔬" },
-  { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "🦉👑" },
+  { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "🧪" },
+  { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "🦉" },
 ];
 
 const ACHIEVEMENTS = [
@@ -48,7 +49,7 @@ const ACHIEVEMENTS = [
     id: "achievementDoctoralAward",
     icon: "medal",
     color: "#8b5cf6",
-    label: "🎖 Doctoral Award",
+    label: "🎖️ Doctoral Award",
     requirement: 10,
   },
   {
@@ -98,6 +99,13 @@ export default function Page() {
       ]),
     ).start();
   }, []);
+
+  // Reload stats whenever the screen comes into focus (user returns from trainer)
+  useFocusEffect(
+    useCallback(() => {
+      loadUserStats();
+    }, []),
+  );
 
   useEffect(() => {
     if (achievements) {
@@ -370,7 +378,13 @@ export default function Page() {
     },
     {
       title: "Rank System 🏆",
-      description: `Start as Student, progress through Scholar, Bachelor, Master, Doctor, and finally Professor!\n\n• Scholar: 1 star\n• Bachelor: 3 stars\n• Master: 5 stars\n• Doctor: 10 stars\n• Professor: 20 stars`,
+      description: `Start as Student, progress through Scholar, Bachelor, Master, Doctor, and finally Professor!
+
+• Scholar: 1 star
+• Bachelor: 3 stars
+• Master: 5 stars
+• Doctor: 10 stars
+• Professor: 20 stars`,
       icon: "trophy",
       color: "#f59e0b",
     },
@@ -409,6 +423,21 @@ export default function Page() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
+        {/* Add this at the top of your screen */}
+        <TouchableOpacity
+          style={{
+            position: "absolute",
+            top: 10,
+            right: 10,
+            backgroundColor: "#ef4444",
+            padding: 8,
+            borderRadius: 20,
+            zIndex: 999,
+          }}
+          onPress={() => router.push("/SubscriptionDebugScreen")}
+        >
+          <MaterialCommunityIcons name="bug" size={20} color="#fff" />
+        </TouchableOpacity>
         {/* Header with Owl */}
         <View style={styles.header}>
           <TouchableOpacity onPress={speakWord} style={styles.owlContainer}>

@@ -17,7 +17,7 @@ import {
   activatePremiumSubscription,
   SUBSCRIPTION_TYPES,
   FEATURES,
-} from "./subscriptionManager";
+} from "./SubscriptionManager";
 
 const SubscriptionScreen = () => {
   const router = useRouter();

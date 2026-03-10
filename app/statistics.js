@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,13 +12,13 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
 import { Dimensions } from "react-native";
 import ABanner from "./banner";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import {
   getSubscriptionStatus,
   getAvailableRanks,
   hasFeatureAccess,
   FEATURES,
-} from "./subscriptionManager";
+} from "./SubscriptionManager";
 
 const db = openDatabaseSync("appdata.db");
 const screenWidth = Dimensions.get("window").width;
@@ -29,8 +29,8 @@ const RANKS = [
   { minPerfect: 1, name: "Scholar", color: "#60a5fa", emoji: "🎓" },
   { minPerfect: 3, name: "Bachelor", color: "#8b5cf6", emoji: "🎓⭐" },
   { minPerfect: 5, name: "Master", color: "#10b981", emoji: "🎓⭐⭐" },
-  { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "🧪👨‍🔬" },
-  { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "🦉👔" },
+  { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "🧪" },
+  { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "🦉" },
 ];
 
 const Statistics = () => {
@@ -66,6 +66,14 @@ const Statistics = () => {
     loadData();
     loadFailedWords();
   }, []);
+
+  // Reload data whenever the screen comes into focus (user returns from trainer)
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+      loadFailedWords();
+    }, []),
+  );
 
   const loadData = async () => {
     try {
@@ -535,7 +543,7 @@ const Statistics = () => {
             </View>
             <TouchableOpacity
               style={styles.practiceButton}
-              onPress={() => router.push("/trainer")}
+              onPress={() => router.push("/PracticeFailedWords")}
             >
               <MaterialCommunityIcons name="school" size={16} color="#fff" />
               <Text style={styles.practiceButtonText}>
@@ -1033,6 +1041,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
+    paddingTop: 20,
   },
   tab: {
     flex: 1,
@@ -1338,22 +1347,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6,
+    position: "relative",
   },
   owlEmojiLarge: { fontSize: 40 },
   rankBadgeSmall: {
     position: "absolute",
-    bottom: -4,
-    right: -4,
+    bottom: -2,
+    right: -2,
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 4,
+    borderRadius: 12,
+    padding: 3,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
   },
-  rankEmojiSmall: { fontSize: 16 },
+  rankEmojiSmall: { fontSize: 14 },
   owlRankInfo: { flex: 1 },
   owlRankTitle: {
     fontSize: 22,
