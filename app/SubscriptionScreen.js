@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Modal,
-  Alert,
   Animated,
+  Alert,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -19,31 +20,46 @@ import {
   FEATURES,
 } from "./SubscriptionManager";
 
+// Product IDs - MUST match Google Play Console
+const PRODUCT_IDS = {
+  MONTHLY: "monthly_premium",
+  YEARLY: "yearly_premium",
+};
+
 const SubscriptionScreen = () => {
   const router = useRouter();
   const [subscription, setSubscription] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState("yearly");
   const [isPurchasing, setIsPurchasing] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [scaleAnim] = useState(new Animated.Value(1));
   const [pulseAnim] = useState(new Animated.Value(1));
 
   useEffect(() => {
     loadSubscription();
+    initializeIAP();
 
-    // Pulse animation for premium badge
+    // Pulse animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
           toValue: 1.05,
-          duration: 1500,
+          duration: 1000,
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 1500,
+          duration: 1000,
           useNativeDriver: true,
         }),
       ]),
     ).start();
+
+    return () => {
+      // Cleanup IAP connection
+      RNIap.endConnection();
+    };
   }, []);
 
   const loadSubscription = async () => {
@@ -51,157 +67,283 @@ const SubscriptionScreen = () => {
     setSubscription(status);
   };
 
-  const handlePurchase = async () => {
-    setIsPurchasing(true);
-
+  const initializeIAP = async () => {
     try {
-      // TODO: Integrate with Google Play Billing
-      // For now, simulate purchase
+      console.log("🔧 Initializing IAP...");
 
-      Alert.alert(
-        "Purchase Simulation",
-        `This will integrate with Google Play Billing.\n\nSelected: ${selectedPlan === "monthly" ? "Monthly €3.99" : "Yearly €24.99"}`,
-        [
-          {
-            text: "Cancel",
-            style: "cancel",
-            onPress: () => setIsPurchasing(false),
-          },
-          {
-            text: "Simulate Purchase",
-            onPress: async () => {
-              const type =
-                selectedPlan === "monthly"
-                  ? SUBSCRIPTION_TYPES.MONTHLY
-                  : SUBSCRIPTION_TYPES.YEARLY;
+      // Initialize connection
+      await RNIap.initConnection();
+      console.log("✅ IAP connection initialized");
 
-              const success = await activatePremiumSubscription(
-                type,
-                `test_token_${Date.now()}`,
-              );
+      // Get available products
+      const availableProducts = await RNIap.getSubscriptions({
+        skus: [PRODUCT_IDS.MONTHLY, PRODUCT_IDS.YEARLY],
+      });
 
-              if (success) {
-                Alert.alert(
-                  "🎉 Welcome to Premium!",
-                  "You now have access to all premium features!",
-                  [
-                    {
-                      text: "Start Learning",
-                      onPress: () => router.back(),
-                    },
-                  ],
-                );
-                loadSubscription();
-              }
-              setIsPurchasing(false);
-            },
-          },
-        ],
+      console.log("✅ Products loaded:", availableProducts);
+      setProducts(availableProducts);
+      setIsInitialized(true);
+
+      // Setup purchase update listener
+      const purchaseUpdateSubscription = RNIap.purchaseUpdatedListener(
+        async (purchase) => {
+          console.log("📦 Purchase update:", purchase);
+          const receipt = purchase.transactionReceipt;
+
+          if (receipt) {
+            try {
+              // Acknowledge the purchase
+              await RNIap.acknowledgePurchaseAndroid({
+                token: purchase.purchaseToken,
+              });
+
+              // Activate premium in our database
+              await handlePurchaseSuccess(purchase);
+
+              // Finish the transaction
+              await RNIap.finishTransaction({ purchase, isConsumable: false });
+            } catch (error) {
+              console.error("❌ Purchase acknowledgment error:", error);
+            }
+          }
+        },
       );
+
+      const purchaseErrorSubscription = RNIap.purchaseErrorListener((error) => {
+        console.error("❌ Purchase error:", error);
+        setIsPurchasing(false);
+
+        if (error.code !== "E_USER_CANCELLED") {
+          Alert.alert(
+            "Purchase Failed",
+            "There was an error processing your purchase. Please try again.",
+          );
+        }
+      });
+
+      return () => {
+        purchaseUpdateSubscription?.remove();
+        purchaseErrorSubscription?.remove();
+      };
     } catch (error) {
-      console.error("Purchase error:", error);
-      Alert.alert("Error", "Purchase failed. Please try again.");
+      console.error("❌ IAP initialization error:", error);
+      setIsInitialized(false);
+
+      // Show error only if it's a real problem (not just testing in dev)
+      if (__DEV__) {
+        console.warn("IAP not available - using simulation for development");
+      } else {
+        Alert.alert(
+          "Setup Error",
+          "Could not connect to Google Play. Please make sure you have the latest version of Google Play Services.",
+        );
+      }
+    }
+  };
+
+  const handlePurchaseSuccess = async (purchase) => {
+    try {
+      // Determine subscription type from product ID
+      const subscriptionType =
+        purchase.productId === PRODUCT_IDS.MONTHLY
+          ? SUBSCRIPTION_TYPES.MONTHLY
+          : SUBSCRIPTION_TYPES.YEARLY;
+
+      // Activate premium subscription in database
+      await activatePremiumSubscription(
+        subscriptionType,
+        purchase.purchaseToken,
+      );
+
+      // Reload subscription status
+      await loadSubscription();
+
+      // Show success message
+      Alert.alert(
+        "🎉 Welcome to Premium!",
+        "Your subscription is now active. Enjoy unlimited access!",
+        [{ text: "Start Learning", onPress: () => router.back() }],
+      );
+
+      setIsPurchasing(false);
+    } catch (error) {
+      console.error("❌ Error activating subscription:", error);
+      Alert.alert(
+        "Activation Error",
+        "Your purchase was successful but there was an error activating your subscription. Please contact support.",
+      );
       setIsPurchasing(false);
     }
   };
 
-  const handleRestorePurchase = () => {
+  const handlePurchase = async () => {
+    if (isPurchasing) return;
+
+    // If IAP is not initialized (dev mode), use simulation
+    if (!isInitialized || __DEV__) {
+      handlePurchaseSimulation();
+      return;
+    }
+
+    setIsPurchasing(true);
+
+    try {
+      const productId =
+        selectedPlan === "monthly" ? PRODUCT_IDS.MONTHLY : PRODUCT_IDS.YEARLY;
+
+      console.log("🛒 Requesting purchase for:", productId);
+
+      // Request subscription
+      await RNIap.requestSubscription({
+        sku: productId,
+        ...(subscription?.isInTrial
+          ? {}
+          : {
+              // Offer free trial if not already in trial
+              subscriptionOffers: [{ offerToken: "trial_offer" }],
+            }),
+      });
+
+      // Purchase listener will handle the rest
+    } catch (error) {
+      console.error("❌ Purchase request error:", error);
+      setIsPurchasing(false);
+
+      if (error.code !== "E_USER_CANCELLED") {
+        Alert.alert(
+          "Purchase Error",
+          "Could not start the purchase. Please try again.",
+        );
+      }
+    }
+  };
+
+  // Development simulation (fallback)
+  const handlePurchaseSimulation = async () => {
+    setIsPurchasing(true);
+
     Alert.alert(
-      "Restore Purchase",
-      "This will check Google Play for existing purchases and restore them.",
+      "Development Mode",
+      "This is a simulated purchase for testing. In production, this would process a real Google Play purchase.",
       [
-        { text: "Cancel", style: "cancel" },
         {
-          text: "Restore",
-          onPress: () => {
-            // TODO: Implement restore purchase logic
-            Alert.alert("Info", "No previous purchases found.");
+          text: "Cancel",
+          onPress: () => setIsPurchasing(false),
+          style: "cancel",
+        },
+        {
+          text: "Simulate Purchase",
+          onPress: async () => {
+            try {
+              const subscriptionType =
+                selectedPlan === "monthly"
+                  ? SUBSCRIPTION_TYPES.MONTHLY
+                  : SUBSCRIPTION_TYPES.YEARLY;
+
+              await activatePremiumSubscription(
+                subscriptionType,
+                `simulated_${Date.now()}`,
+              );
+
+              await loadSubscription();
+
+              Alert.alert(
+                "✅ Simulated Success",
+                "Premium activated (simulation mode)",
+              );
+              setIsPurchasing(false);
+            } catch (error) {
+              console.error("Simulation error:", error);
+              Alert.alert("Error", "Simulation failed");
+              setIsPurchasing(false);
+            }
           },
         },
       ],
     );
   };
 
-  const features = [
-    {
-      icon: "infinity",
-      title: "Unlimited Quizzes",
-      description: "Practice as much as you want, no daily limits",
-      color: "#6366f1",
-    },
-    {
-      icon: "close-circle-outline",
-      title: "Ad-Free Experience",
-      description: "Learn without interruptions",
-      color: "#10b981",
-    },
-    {
-      icon: "chart-line",
-      title: "Advanced Statistics",
-      description: "Detailed insights and progress tracking",
-      color: "#f59e0b",
-    },
-    {
-      icon: "trophy-award",
-      title: "Premium Ranks",
-      description: "Unlock Grand Master, Legend, and Deity ranks",
-      color: "#a855f7",
-    },
-    {
-      icon: "trending-up",
-      title: "Progress Analytics",
-      description: "Weekly and monthly performance reports",
-      color: "#ec4899",
-    },
-    {
-      icon: "palette",
-      title: "Premium Themes",
-      description: "Exclusive visual themes and customization",
-      color: "#06b6d4",
-    },
-  ];
+  const handleRestorePurchase = async () => {
+    if (!isInitialized) {
+      Alert.alert(
+        "Not Available",
+        "Restore purchases is not available in development mode.",
+      );
+      return;
+    }
+
+    try {
+      setIsPurchasing(true);
+      console.log("🔄 Restoring purchases...");
+
+      // Get purchase history
+      const purchases = await RNIap.getAvailablePurchases();
+      console.log("📜 Purchase history:", purchases);
+
+      if (purchases.length === 0) {
+        Alert.alert(
+          "No Purchases Found",
+          "We couldn't find any previous purchases for this account.",
+        );
+        setIsPurchasing(false);
+        return;
+      }
+
+      // Find most recent subscription
+      const subscription = purchases.find(
+        (p) =>
+          p.productId === PRODUCT_IDS.MONTHLY ||
+          p.productId === PRODUCT_IDS.YEARLY,
+      );
+
+      if (subscription) {
+        // Restore subscription
+        await handlePurchaseSuccess(subscription);
+
+        Alert.alert(
+          "✅ Restored!",
+          "Your subscription has been restored successfully.",
+        );
+      } else {
+        Alert.alert(
+          "No Subscription Found",
+          "We couldn't find an active subscription for this account.",
+        );
+      }
+
+      setIsPurchasing(false);
+    } catch (error) {
+      console.error("❌ Restore error:", error);
+      Alert.alert(
+        "Restore Failed",
+        "Could not restore purchases. Please try again or contact support.",
+      );
+      setIsPurchasing(false);
+    }
+  };
+
+  const getProductPrice = (productId) => {
+    const product = products.find((p) => p.productId === productId);
+    return product?.localizedPrice || "€3.99"; // Fallback price
+  };
 
   const renderTrialBanner = () => {
     if (!subscription?.isInTrial) return null;
 
     return (
       <View style={styles.trialBanner}>
-        <MaterialCommunityIcons name="timer-sand" size={20} color="#f59e0b" />
-        <Text style={styles.trialText}>
-          {subscription.daysLeftInTrial} days left in your free trial
-        </Text>
-      </View>
-    );
-  };
-
-  const renderPremiumStatus = () => {
-    if (!subscription?.isPremium || subscription?.isInTrial) return null;
-
-    return (
-      <View style={styles.premiumStatusCard}>
-        <Animated.View
-          style={[styles.premiumBadge, { transform: [{ scale: pulseAnim }] }]}
-        >
-          <MaterialCommunityIcons name="crown" size={32} color="#fbbf24" />
-        </Animated.View>
-        <View style={styles.premiumStatusContent}>
-          <Text style={styles.premiumStatusTitle}>Premium Active</Text>
-          <Text style={styles.premiumStatusSubtitle}>
-            {subscription.subscriptionType === SUBSCRIPTION_TYPES.MONTHLY
-              ? "Monthly Plan"
-              : "Yearly Plan"}
+        <MaterialCommunityIcons name="timer-sand" size={24} color="#f59e0b" />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.trialBannerTitle}>Free Trial Active</Text>
+          <Text style={styles.trialBannerText}>
+            {subscription.daysLeftInTrial} days left in your free trial
           </Text>
-          {subscription.endDate && (
-            <Text style={styles.premiumStatusDate}>
-              Renews on{" "}
-              {new Date(subscription.endDate).toLocaleDateString("de-DE")}
-            </Text>
-          )}
         </View>
       </View>
     );
   };
 
+  // If user is already premium, show success screen
   if (subscription?.isPremium && !subscription?.isInTrial) {
     return (
       <SafeAreaView style={styles.container}>
@@ -217,29 +359,39 @@ const SubscriptionScreen = () => {
           <View style={{ width: 24 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {renderPremiumStatus()}
+        <ScrollView contentContainerStyle={styles.successContent}>
+          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <MaterialCommunityIcons name="crown" size={80} color="#fbbf24" />
+          </Animated.View>
 
-          <Text style={styles.sectionTitle}>Your Premium Features</Text>
-          <View style={styles.featuresGrid}>
-            {features.map((feature, index) => (
-              <View key={index} style={styles.featureCard}>
+          <Text style={styles.successTitle}>You're Premium! 👑</Text>
+          <Text style={styles.successSubtitle}>
+            Enjoy unlimited access to all premium features
+          </Text>
+
+          <View style={styles.premiumFeaturesCard}>
+            <Text style={styles.premiumFeaturesTitle}>Active Features:</Text>
+            {[
+              { icon: "infinity", title: "Unlimited Quizzes" },
+              { icon: "close-circle-outline", title: "Ad-Free Experience" },
+              { icon: "chart-line", title: "Advanced Statistics" },
+              { icon: "trophy-award", title: "Premium Ranks" },
+              { icon: "school", title: "Practice Failed Words" },
+            ].map((feature, index) => (
+              <View key={index} style={styles.premiumFeatureRow}>
                 <View
                   style={[
-                    styles.featureIcon,
-                    { backgroundColor: `${feature.color}15` },
+                    styles.premiumFeatureIcon,
+                    { backgroundColor: "#10b98115" },
                   ]}
                 >
                   <MaterialCommunityIcons
                     name={feature.icon}
                     size={24}
-                    color={feature.color}
+                    color="#10b981"
                   />
                 </View>
                 <Text style={styles.featureTitle}>{feature.title}</Text>
-                <Text style={styles.featureDescription}>
-                  {feature.description}
-                </Text>
               </View>
             ))}
           </View>
@@ -285,70 +437,46 @@ const SubscriptionScreen = () => {
           >
             <MaterialCommunityIcons name="crown" size={64} color="#fbbf24" />
           </Animated.View>
-          <Text style={styles.heroTitle}>Unlock Your Full Potential</Text>
+          <Text style={styles.heroTitle}>Unlock Premium Features</Text>
           <Text style={styles.heroSubtitle}>
-            Master German articles faster with premium features
+            Master German articles faster with unlimited practice
           </Text>
         </View>
 
-        {/* Pricing Plans */}
-        <View style={styles.pricingSection}>
-          <TouchableOpacity
-            style={[
-              styles.pricingCard,
-              selectedPlan === "monthly" && styles.pricingCardSelected,
-            ]}
-            onPress={() => setSelectedPlan("monthly")}
-          >
-            <View style={styles.pricingHeader}>
-              <View>
-                <Text style={styles.pricingTitle}>Monthly</Text>
-                <Text style={styles.pricingPrice}>€3.99</Text>
-                <Text style={styles.pricingPeriod}>per month</Text>
-              </View>
-              {selectedPlan === "monthly" && (
-                <MaterialCommunityIcons
-                  name="check-circle"
-                  size={32}
-                  color="#6366f1"
-                />
-              )}
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.pricingCard,
-              selectedPlan === "yearly" && styles.pricingCardSelected,
-              styles.recommendedCard,
-            ]}
-            onPress={() => setSelectedPlan("yearly")}
-          >
-            <View style={styles.recommendedBadge}>
-              <Text style={styles.recommendedText}>SAVE 48%</Text>
-            </View>
-            <View style={styles.pricingHeader}>
-              <View>
-                <Text style={styles.pricingTitle}>Yearly</Text>
-                <Text style={styles.pricingPrice}>€24.99</Text>
-                <Text style={styles.pricingPeriod}>per year</Text>
-                <Text style={styles.savingsText}>Only €2.08/month</Text>
-              </View>
-              {selectedPlan === "yearly" && (
-                <MaterialCommunityIcons
-                  name="check-circle"
-                  size={32}
-                  color="#6366f1"
-                />
-              )}
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Features List */}
-        <Text style={styles.sectionTitle}>Premium Features</Text>
+        {/* Features Grid */}
         <View style={styles.featuresGrid}>
-          {features.map((feature, index) => (
+          {[
+            {
+              icon: "infinity",
+              title: "Unlimited Quizzes",
+              description: "Practice as much as you want, no daily limits",
+              color: "#6366f1",
+            },
+            {
+              icon: "close-circle-outline",
+              title: "Ad-Free Experience",
+              description: "Learn without interruptions",
+              color: "#10b981",
+            },
+            {
+              icon: "chart-line",
+              title: "Advanced Statistics",
+              description: "Detailed timing, streaks, and session analytics",
+              color: "#f59e0b",
+            },
+            {
+              icon: "trophy-award",
+              title: "Premium Ranks",
+              description: "Unlock Grand Master, Legend, and Deity ranks",
+              color: "#a855f7",
+            },
+            {
+              icon: "school",
+              title: "Practice Failed Words",
+              description: "Focus on your weakest areas for faster improvement",
+              color: "#ef4444",
+            },
+          ].map((feature, index) => (
             <View key={index} style={styles.featureCard}>
               <View
                 style={[
@@ -369,6 +497,72 @@ const SubscriptionScreen = () => {
             </View>
           ))}
         </View>
+
+        {/* Pricing Cards */}
+        <Text style={styles.sectionTitle}>Choose Your Plan</Text>
+
+        <TouchableOpacity
+          style={[
+            styles.pricingCard,
+            selectedPlan === "yearly" && styles.pricingCardSelected,
+          ]}
+          onPress={() => setSelectedPlan("yearly")}
+        >
+          <View style={styles.popularBadge}>
+            <Text style={styles.popularBadgeText}>BEST VALUE</Text>
+          </View>
+
+          <View style={styles.pricingHeader}>
+            <View>
+              <Text style={styles.pricingTitle}>Yearly</Text>
+              <Text style={styles.pricingPrice}>
+                {getProductPrice(PRODUCT_IDS.YEARLY)}/year
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.radioButton,
+                selectedPlan === "yearly" && styles.radioButtonSelected,
+              ]}
+            >
+              {selectedPlan === "yearly" && (
+                <View style={styles.radioButtonInner} />
+              )}
+            </View>
+          </View>
+
+          <View style={styles.savingsBadge}>
+            <MaterialCommunityIcons name="tag" size={16} color="#10b981" />
+            <Text style={styles.savingsText}>Save 48% vs Monthly</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.pricingCard,
+            selectedPlan === "monthly" && styles.pricingCardSelected,
+          ]}
+          onPress={() => setSelectedPlan("monthly")}
+        >
+          <View style={styles.pricingHeader}>
+            <View>
+              <Text style={styles.pricingTitle}>Monthly</Text>
+              <Text style={styles.pricingPrice}>
+                {getProductPrice(PRODUCT_IDS.MONTHLY)}/month
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.radioButton,
+                selectedPlan === "monthly" && styles.radioButtonSelected,
+              ]}
+            >
+              {selectedPlan === "monthly" && (
+                <View style={styles.radioButtonInner} />
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
 
         {/* Trial Info */}
         {subscription?.isInTrial && (
@@ -391,26 +585,32 @@ const SubscriptionScreen = () => {
           onPress={handlePurchase}
           disabled={isPurchasing}
         >
-          <MaterialCommunityIcons name="crown" size={20} color="#fff" />
-          <Text style={styles.ctaButtonText}>
-            {isPurchasing
-              ? "Processing..."
-              : subscription?.isInTrial
-                ? "Subscribe Now"
-                : "Start 7-Day Free Trial"}
-          </Text>
+          {isPurchasing ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <MaterialCommunityIcons name="crown" size={20} color="#fff" />
+              <Text style={styles.ctaButtonText}>
+                {subscription?.isInTrial
+                  ? "Subscribe Now"
+                  : "Start 7-Day Free Trial"}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
 
         {/* Restore Purchase */}
         <TouchableOpacity
           style={styles.restoreButton}
           onPress={handleRestorePurchase}
+          disabled={isPurchasing}
         >
           <Text style={styles.restoreButtonText}>Restore Purchase</Text>
         </TouchableOpacity>
 
         {/* Terms */}
         <Text style={styles.termsText}>
+          {!subscription?.isInTrial && "Start with a 7-day free trial. "}
           Payment will be charged to your Google Play account. Subscription
           automatically renews unless auto-renew is turned off at least 24 hours
           before the end of the current period.
@@ -443,61 +643,27 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
   },
+  successContent: {
+    padding: 40,
+    alignItems: "center",
+  },
   trialBanner: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     backgroundColor: "#fef3c7",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    padding: 16,
     borderRadius: 12,
     marginBottom: 20,
-    gap: 8,
   },
-  trialText: {
+  trialBannerTitle: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#92400e",
   },
-  premiumStatusCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  premiumBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#fef3c7",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  premiumStatusContent: {
-    flex: 1,
-  },
-  premiumStatusTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1e293b",
-    marginBottom: 4,
-  },
-  premiumStatusSubtitle: {
-    fontSize: 14,
-    color: "#64748b",
-    marginBottom: 4,
-  },
-  premiumStatusDate: {
-    fontSize: 12,
-    color: "#94a3b8",
+  trialBannerText: {
+    fontSize: 13,
+    color: "#92400e",
+    marginTop: 2,
   },
   heroSection: {
     alignItems: "center",
@@ -524,14 +690,52 @@ const styles = StyleSheet.create({
     color: "#64748b",
     textAlign: "center",
   },
-  pricingSection: {
-    marginBottom: 32,
+  featuresGrid: {
     gap: 12,
+    marginBottom: 32,
+  },
+  featureCard: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  featureIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  featureTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1e293b",
+    flex: 1,
+  },
+  featureDescription: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 16,
   },
   pricingCard: {
     backgroundColor: "#fff",
     padding: 20,
     borderRadius: 16,
+    marginBottom: 12,
     borderWidth: 2,
     borderColor: "#e2e8f0",
   },
@@ -539,27 +743,25 @@ const styles = StyleSheet.create({
     borderColor: "#6366f1",
     backgroundColor: "#eef2ff",
   },
-  recommendedCard: {
-    position: "relative",
-  },
-  recommendedBadge: {
+  popularBadge: {
     position: "absolute",
-    top: -10,
+    top: -12,
     right: 20,
-    backgroundColor: "#10b981",
+    backgroundColor: "#fbbf24",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  recommendedText: {
-    color: "#fff",
+  popularBadgeText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
+    color: "#fff",
   },
   pricingHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 12,
   },
   pricingTitle: {
     fontSize: 18,
@@ -568,69 +770,45 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   pricingPrice: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: "800",
     color: "#6366f1",
   },
-  pricingPeriod: {
-    fontSize: 14,
-    color: "#64748b",
-  },
-  savingsText: {
-    fontSize: 12,
-    color: "#10b981",
-    fontWeight: "600",
-    marginTop: 4,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1e293b",
-    marginBottom: 16,
-  },
-  featuresGrid: {
-    gap: 12,
-    marginBottom: 24,
-  },
-  featureCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    padding: 16,
+  radioButton: {
+    width: 24,
+    height: 24,
     borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  featureIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#cbd5e1",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
   },
-  featureTitle: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1e293b",
-    marginBottom: 2,
+  radioButtonSelected: {
+    borderColor: "#6366f1",
   },
-  featureDescription: {
-    flex: 1,
+  radioButtonInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#6366f1",
+  },
+  savingsBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  savingsText: {
     fontSize: 13,
-    color: "#64748b",
+    fontWeight: "600",
+    color: "#10b981",
   },
   trialInfoCard: {
     flexDirection: "row",
     backgroundColor: "#eef2ff",
     padding: 16,
     borderRadius: 12,
-    marginBottom: 24,
     gap: 12,
+    marginBottom: 20,
   },
   trialInfoText: {
     flex: 1,
@@ -640,48 +818,94 @@ const styles = StyleSheet.create({
   },
   ctaButton: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
     backgroundColor: "#6366f1",
     paddingVertical: 16,
     borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
     gap: 8,
-    marginBottom: 12,
+    shadowColor: "#6366f1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   ctaButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   ctaButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
   },
   restoreButton: {
-    alignItems: "center",
     paddingVertical: 12,
-    marginBottom: 16,
+    alignItems: "center",
+    marginTop: 16,
   },
   restoreButtonText: {
     color: "#6366f1",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
+  },
+  termsText: {
+    fontSize: 12,
+    color: "#94a3b8",
+    textAlign: "center",
+    lineHeight: 18,
+    marginTop: 16,
+  },
+  successTitle: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#1e293b",
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  successSubtitle: {
+    fontSize: 16,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 32,
+  },
+  premiumFeaturesCard: {
+    width: "100%",
+    backgroundColor: "#fff",
+    padding: 24,
+    borderRadius: 16,
+    marginBottom: 24,
+  },
+  premiumFeaturesTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 16,
+  },
+  premiumFeatureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  premiumFeatureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
   },
   manageButton: {
     backgroundColor: "#f1f5f9",
     paddingVertical: 16,
+    paddingHorizontal: 24,
     borderRadius: 12,
+    width: "100%",
     alignItems: "center",
   },
   manageButtonText: {
     color: "#475569",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
-  },
-  termsText: {
-    fontSize: 11,
-    color: "#94a3b8",
-    textAlign: "center",
-    lineHeight: 16,
   },
 });
 

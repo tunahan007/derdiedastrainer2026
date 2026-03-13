@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -12,25 +12,19 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
 import { Dimensions } from "react-native";
 import ABanner from "./banner";
-import { useRouter, useFocusEffect } from "expo-router";
-import {
-  getSubscriptionStatus,
-  getAvailableRanks,
-  hasFeatureAccess,
-  FEATURES,
-} from "./SubscriptionManager";
+import { useRouter } from "expo-router";
 
 const db = openDatabaseSync("appdata.db");
 const screenWidth = Dimensions.get("window").width;
 
 // Student Rank System (based on perfectScores)
 const RANKS = [
-  { minPerfect: 0, name: "Student", color: "#94a3b8", emoji: "📚" },
-  { minPerfect: 1, name: "Scholar", color: "#60a5fa", emoji: "🎓" },
-  { minPerfect: 3, name: "Bachelor", color: "#8b5cf6", emoji: "🎓⭐" },
-  { minPerfect: 5, name: "Master", color: "#10b981", emoji: "🎓⭐⭐" },
-  { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "🧪" },
-  { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "🦉" },
+  { minPerfect: 0, name: "Student", color: "#94a3b8", emoji: "ðŸ“š" },
+  { minPerfect: 1, name: "Scholar", color: "#60a5fa", emoji: "ðŸŽ“" },
+  { minPerfect: 3, name: "Bachelor", color: "#8b5cf6", emoji: "ðŸŽ“â­" },
+  { minPerfect: 5, name: "Master", color: "#10b981", emoji: "ðŸŽ“â­â­" },
+  { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "ðŸ§ªðŸ‘¨â€ðŸ”¬" },
+  { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "ðŸ¦‰ðŸ‘”" },
 ];
 
 const Statistics = () => {
@@ -43,8 +37,7 @@ const Statistics = () => {
   const [nextRank, setNextRank] = useState(RANKS[1]);
   const [progressPercent, setProgressPercent] = useState(0);
   const [perfectsUntilNext, setPerfectsUntilNext] = useState(1);
-  const [subscription, setSubscription] = useState(null);
-  const [availableRanks, setAvailableRanks] = useState(RANKS);
+
   const [failedWords, setFailedWords] = useState([]);
 
   useEffect(() => {
@@ -67,29 +60,13 @@ const Statistics = () => {
     loadFailedWords();
   }, []);
 
-  // Reload data whenever the screen comes into focus (user returns from trainer)
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-      loadFailedWords();
-    }, []),
-  );
-
   const loadData = async () => {
     try {
-      // Load subscription status
-      const subStatus = await getSubscriptionStatus();
-      setSubscription(subStatus);
-
-      // Get available ranks (includes premium ranks if subscribed)
-      const ranks = await getAvailableRanks();
-      setAvailableRanks(ranks);
-
       const tableInfo = await db.getAllAsync(`PRAGMA table_info(statistics)`);
       const hasNewColumns = tableInfo.some((col) => col.name === "bestStreak");
 
       if (!hasNewColumns && tableInfo.length > 0) {
-        console.log("📦 Migrating statistics table...");
+        console.log("ðŸ“¦ Migrating statistics table...");
         await db.execAsync(`
           CREATE TABLE statistics_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,7 +89,7 @@ const Statistics = () => {
         `);
         await db.execAsync(`DROP TABLE statistics;`);
         await db.execAsync(`ALTER TABLE statistics_new RENAME TO statistics;`);
-        console.log("✅ Statistics table migrated");
+        console.log("âœ… Statistics table migrated");
       } else if (tableInfo.length === 0) {
         await db.execAsync(`
           CREATE TABLE statistics (
@@ -170,13 +147,13 @@ const Statistics = () => {
   };
 
   const calculateRank = (perfectScores) => {
-    let current = availableRanks[0];
-    let next = availableRanks[1];
+    let current = RANKS[0];
+    let next = RANKS[1];
 
-    for (let i = availableRanks.length - 1; i >= 0; i--) {
-      if ((perfectScores || 0) >= availableRanks[i].minPerfect) {
-        current = availableRanks[i];
-        next = availableRanks[i + 1] || availableRanks[i];
+    for (let i = RANKS.length - 1; i >= 0; i--) {
+      if ((perfectScores || 0) >= RANKS[i].minPerfect) {
+        current = RANKS[i];
+        next = RANKS[i + 1] || RANKS[i];
         break;
       }
     }
@@ -303,93 +280,6 @@ const Statistics = () => {
 
   const renderOverviewTab = () => (
     <View>
-      {/* FREE USER PREMIUM BANNER */}
-      {!subscription?.isPremium && !subscription?.isInTrial && (
-        <TouchableOpacity
-          style={{
-            backgroundColor: "#6366f1",
-            padding: 20,
-            borderRadius: 16,
-            marginBottom: 20,
-            flexDirection: "row",
-            alignItems: "center",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.15,
-            shadowRadius: 12,
-            elevation: 5,
-          }}
-          onPress={() => router.push("/SubscriptionScreen")}
-        >
-          <MaterialCommunityIcons name="crown" size={32} color="#fbbf24" />
-          <View style={{ flex: 1, marginLeft: 16 }}>
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: "700",
-                color: "#fff",
-                marginBottom: 4,
-              }}
-            >
-              Unlock Premium Features
-            </Text>
-            <Text
-              style={{
-                fontSize: 13,
-                color: "#e0e7ff",
-              }}
-            >
-              Unlimited quizzes, advanced stats & more!
-            </Text>
-          </View>
-          <MaterialCommunityIcons name="chevron-right" size={24} color="#fff" />
-        </TouchableOpacity>
-      )}
-
-      {/* TRIAL BANNER */}
-      {subscription?.isInTrial && (
-        <View
-          style={{
-            backgroundColor: "#fef3c7",
-            padding: 16,
-            borderRadius: 12,
-            marginBottom: 20,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <MaterialCommunityIcons name="timer-sand" size={24} color="#f59e0b" />
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "600",
-                color: "#92400e",
-              }}
-            >
-              Free Trial Active
-            </Text>
-            <Text
-              style={{
-                fontSize: 12,
-                color: "#92400e",
-              }}
-            >
-              {subscription.daysLeftInTrial} days left - Subscribe to keep
-              premium access
-            </Text>
-          </View>
-          <TouchableOpacity onPress={() => router.push("/SubscriptionScreen")}>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={24}
-              color="#92400e"
-            />
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
         <View style={[styles.statBox, { backgroundColor: "#eff6ff" }]}>
@@ -438,7 +328,7 @@ const Statistics = () => {
           >
             <Text style={styles.owlEmojiLarge}>{currentRank.emoji}</Text>
             <View style={styles.rankBadgeSmall}>
-              <Text style={styles.rankEmojiSmall}>🏅</Text>
+              <Text style={styles.rankEmojiSmall}>ðŸ…</Text>
             </View>
           </View>
           <View style={styles.owlRankInfo}>
@@ -531,7 +421,7 @@ const Statistics = () => {
                     </Text>
                     <View style={styles.failCountBadge}>
                       <Text style={styles.failCountText}>
-                        {item.failCount}×
+                        {item.failCount}Ã—
                       </Text>
                     </View>
                   </View>
@@ -600,141 +490,25 @@ const Statistics = () => {
     <View>
       <Text style={styles.sectionTitle}>Session History</Text>
 
-      {subscription?.isPremium || subscription?.isInTrial ? (
-        // PREMIUM VERSION - Detailed Stats
-        stats.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons
-              name="chart-line-variant"
-              size={64}
-              color="#cbd5e1"
-            />
-            <Text style={styles.emptyText}>No sessions yet</Text>
-            <Text style={styles.emptySubtext}>
-              Complete your first quiz to see statistics!
-            </Text>
-          </View>
-        ) : (
-          stats.map((session, index) => {
-            const date = new Date(session.date);
-            const scorePercent = session.progressPercent || 0;
-            const isPerfect = session.correctAnswers === session.totalReviewed;
-
-            return (
-              <View key={index} style={styles.sessionCard}>
-                <View style={styles.sessionHeader}>
-                  <View style={styles.sessionDateContainer}>
-                    <MaterialCommunityIcons
-                      name="calendar"
-                      size={16}
-                      color="#64748b"
-                    />
-                    <Text style={styles.sessionDate}>
-                      {date.toLocaleDateString("de-DE")}
-                    </Text>
-                    <Text style={styles.sessionTime}>
-                      {date.toLocaleTimeString("de-DE", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.scoreCircle,
-                      {
-                        backgroundColor:
-                          scorePercent >= 90
-                            ? "#10b981"
-                            : scorePercent >= 70
-                              ? "#f59e0b"
-                              : "#6366f1",
-                      },
-                    ]}
-                  >
-                    <Text style={styles.scoreCircleText}>
-                      {scorePercent.toFixed(0)}%
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.sessionStats}>
-                  <View style={styles.sessionStatItem}>
-                    <MaterialCommunityIcons
-                      name="check-circle"
-                      size={16}
-                      color="#10b981"
-                    />
-                    <Text style={styles.sessionStatText}>
-                      {session.correctAnswers}/{session.totalReviewed}
-                    </Text>
-                  </View>
-                  <View style={styles.sessionStatItem}>
-                    <MaterialCommunityIcons
-                      name="close-circle"
-                      size={16}
-                      color="#ef4444"
-                    />
-                    <Text style={styles.sessionStatText}>
-                      {session.fails} fails
-                    </Text>
-                  </View>
-                  <View style={styles.sessionStatItem}>
-                    <MaterialCommunityIcons
-                      name="clock-outline"
-                      size={16}
-                      color="#6366f1"
-                    />
-                    <Text style={styles.sessionStatText}>
-                      {Math.floor(session.sessionTime / 60)}:
-                      {(session.sessionTime % 60).toString().padStart(2, "0")}
-                    </Text>
-                  </View>
-                </View>
-
-                {session.bestStreak > 0 && (
-                  <View style={styles.sessionStreak}>
-                    <MaterialCommunityIcons
-                      name="fire"
-                      size={16}
-                      color="#f97316"
-                    />
-                    <Text style={styles.sessionStreakText}>
-                      Best Streak: {session.bestStreak}
-                    </Text>
-                  </View>
-                )}
-
-                {session.avgTimePerQuestion > 0 && (
-                  <Text style={styles.sessionAvgTime}>
-                    Avg: {session.avgTimePerQuestion}s/question • Fastest:{" "}
-                    {session.fastestQuestion}s • Slowest:{" "}
-                    {session.slowestQuestion}s
-                  </Text>
-                )}
-
-                {isPerfect && (
-                  <View style={styles.sessionStreak}>
-                    <MaterialCommunityIcons
-                      name="trophy-award"
-                      size={16}
-                      color="#fbbf24"
-                    />
-                    <Text
-                      style={[styles.sessionStreakText, { color: "#fbbf24" }]}
-                    >
-                      Perfect Score!
-                    </Text>
-                  </View>
-                )}
-              </View>
-            );
-          })
-        )
+      {stats.length === 0 ? (
+        <View style={styles.emptyState}>
+          <MaterialCommunityIcons
+            name="chart-line-variant"
+            size={64}
+            color="#cbd5e1"
+          />
+          <Text style={styles.emptyText}>No sessions yet</Text>
+          <Text style={styles.emptySubtext}>
+            Complete your first quiz to see statistics!
+          </Text>
+        </View>
       ) : (
-        // FREE VERSION - Simplified Stats
-        <View>
-          {stats.slice(0, 3).map((session, index) => (
+        stats.map((session, index) => {
+          const date = new Date(session.date);
+          const scorePercent = session.progressPercent || 0;
+          const isPerfect = session.correctAnswers === session.totalReviewed;
+
+          return (
             <View key={index} style={styles.sessionCard}>
               <View style={styles.sessionHeader}>
                 <View style={styles.sessionDateContainer}>
@@ -744,7 +518,13 @@ const Statistics = () => {
                     color="#64748b"
                   />
                   <Text style={styles.sessionDate}>
-                    {new Date(session.date).toLocaleDateString("de-DE")}
+                    {date.toLocaleDateString("de-DE")}
+                  </Text>
+                  <Text style={styles.sessionTime}>
+                    {date.toLocaleTimeString("de-DE", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </Text>
                 </View>
                 <View
@@ -752,16 +532,16 @@ const Statistics = () => {
                     styles.scoreCircle,
                     {
                       backgroundColor:
-                        session.progressPercent >= 90
+                        scorePercent >= 90
                           ? "#10b981"
-                          : session.progressPercent >= 70
+                          : scorePercent >= 70
                             ? "#f59e0b"
                             : "#6366f1",
                     },
                   ]}
                 >
                   <Text style={styles.scoreCircleText}>
-                    {session.progressPercent?.toFixed(0)}%
+                    {scorePercent.toFixed(0)}%
                   </Text>
                 </View>
               </View>
@@ -777,67 +557,73 @@ const Statistics = () => {
                     {session.correctAnswers}/{session.totalReviewed}
                   </Text>
                 </View>
+                <View style={styles.sessionStatItem}>
+                  <MaterialCommunityIcons
+                    name="close-circle"
+                    size={16}
+                    color="#ef4444"
+                  />
+                  <Text style={styles.sessionStatText}>
+                    {session.fails} fails
+                  </Text>
+                </View>
+                <View style={styles.sessionStatItem}>
+                  <MaterialCommunityIcons
+                    name="clock-outline"
+                    size={16}
+                    color="#6366f1"
+                  />
+                  <Text style={styles.sessionStatText}>
+                    {Math.floor(session.sessionTime / 60)}:
+                    {(session.sessionTime % 60).toString().padStart(2, "0")}
+                  </Text>
+                </View>
               </View>
-            </View>
-          ))}
 
-          {/* Premium Upsell */}
-          <TouchableOpacity
-            style={{
-              backgroundColor: "#eef2ff",
-              padding: 16,
-              borderRadius: 12,
-              marginTop: 12,
-              alignItems: "center",
-              flexDirection: "row",
-              justifyContent: "center",
-              gap: 8,
-            }}
-            onPress={() => router.push("/SubscriptionScreen")}
-          >
-            <MaterialCommunityIcons name="crown" size={20} color="#6366f1" />
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "600",
-                color: "#6366f1",
-              }}
-            >
-              Upgrade to see detailed analytics
-            </Text>
-          </TouchableOpacity>
-        </View>
+              {session.bestStreak > 0 && (
+                <View style={styles.sessionStreak}>
+                  <MaterialCommunityIcons
+                    name="fire"
+                    size={16}
+                    color="#f97316"
+                  />
+                  <Text style={styles.sessionStreakText}>
+                    Best Streak: {session.bestStreak}
+                  </Text>
+                </View>
+              )}
+
+              {session.avgTimePerQuestion > 0 && (
+                <Text style={styles.sessionAvgTime}>
+                  Avg: {session.avgTimePerQuestion}s/question • Fastest:{" "}
+                  {session.fastestQuestion}s • Slowest:{" "}
+                  {session.slowestQuestion}s
+                </Text>
+              )}
+
+              {isPerfect && (
+                <View style={styles.sessionStreak}>
+                  <MaterialCommunityIcons
+                    name="trophy-award"
+                    size={16}
+                    color="#fbbf24"
+                  />
+                  <Text
+                    style={[styles.sessionStreakText, { color: "#fbbf24" }]}
+                  >
+                    Perfect Score!
+                  </Text>
+                </View>
+              )}
+            </View>
+          );
+        })
       )}
     </View>
   );
 
   const renderAchievementsTab = () => (
     <View>
-      {subscription?.isPremium && !subscription?.isInTrial && (
-        <View
-          style={{
-            backgroundColor: "#fef3c7",
-            padding: 16,
-            borderRadius: 12,
-            marginBottom: 20,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <MaterialCommunityIcons name="crown" size={24} color="#f59e0b" />
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: "#92400e",
-            }}
-          >
-            Premium Active - Access to Grand Master, Legend & Deity ranks!
-          </Text>
-        </View>
-      )}
-
       <Text style={styles.sectionTitle}>Achievements</Text>
 
       {getAchievementBadges().length > 0 ? (
@@ -875,8 +661,8 @@ const Statistics = () => {
 
         <View style={styles.progressItem}>
           <Text style={styles.progressItemLabel}>
-            🎯 First Perfect Score (
-            {achievements?.perfectScores >= 1 ? "✓" : "0/1"})
+            ðŸŽ¯ First Perfect Score (
+            {achievements?.perfectScores >= 1 ? "âœ“" : "0/1"})
           </Text>
           <View style={styles.progressBar}>
             <View
@@ -895,9 +681,9 @@ const Statistics = () => {
 
         <View style={styles.progressItem}>
           <Text style={styles.progressItemLabel}>
-            🌟 5 Perfect Scores (
+            ðŸŒŸ 5 Perfect Scores (
             {achievements?.perfectScores >= 5
-              ? "✓"
+              ? "âœ“"
               : `${achievements?.perfectScores || 0}/5`}
             )
           </Text>
@@ -918,9 +704,9 @@ const Statistics = () => {
 
         <View style={styles.progressItem}>
           <Text style={styles.progressItemLabel}>
-            🔥 7 Day Streak (
+            ðŸ”¥ 7 Day Streak (
             {achievements?.consecutiveDays >= 7
-              ? "✓"
+              ? "âœ“"
               : `${achievements?.consecutiveDays || 0}/7`}
             )
           </Text>
@@ -941,9 +727,9 @@ const Statistics = () => {
 
         <View style={styles.progressItem}>
           <Text style={styles.progressItemLabel}>
-            📚 50 Quizzes (
+            ðŸ“š 50 Quizzes (
             {achievements?.totalQuizzes >= 50
-              ? "✓"
+              ? "âœ“"
               : `${achievements?.totalQuizzes || 0}/50`}
             )
           </Text>
@@ -1021,11 +807,9 @@ const Statistics = () => {
         {selectedTab === "history" && renderHistoryTab()}
         {selectedTab === "achievements" && renderAchievementsTab()}
 
-        {!subscription?.isPremium && !subscription?.isInTrial && (
-          <View style={{ marginTop: 20, marginBottom: 10 }}>
-            <ABanner />
-          </View>
-        )}
+        <View style={{ marginTop: 20, marginBottom: 10 }}>
+          <ABanner />
+        </View>
       </ScrollView>
     </View>
   );
@@ -1041,7 +825,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
-    paddingTop: 20,
   },
   tab: {
     flex: 1,
@@ -1347,27 +1130,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6,
-    position: "relative",
   },
   owlEmojiLarge: { fontSize: 40 },
   rankBadgeSmall: {
     position: "absolute",
-    bottom: -2,
-    right: -2,
+    bottom: -4,
+    right: -4,
     backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 3,
-    width: 24,
-    height: 24,
-    justifyContent: "center",
-    alignItems: "center",
+    borderRadius: 16,
+    padding: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
   },
-  rankEmojiSmall: { fontSize: 14 },
+  rankEmojiSmall: { fontSize: 16 },
   owlRankInfo: { flex: 1 },
   owlRankTitle: {
     fontSize: 22,

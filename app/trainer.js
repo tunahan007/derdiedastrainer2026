@@ -21,14 +21,6 @@ import "expo-dev-client";
 import { quizMainData } from "./words";
 import ABanner from "./banner";
 import { openDatabaseSync } from "expo-sqlite";
-import {
-  initializeSubscriptionTables,
-  canStartQuiz,
-  incrementQuizCount,
-  getSubscriptionStatus,
-  hasFeatureAccess,
-  FEATURES,
-} from "./SubscriptionManager";
 
 const db = openDatabaseSync("appdata.db");
 
@@ -58,16 +50,6 @@ const App = () => {
   const [failureData, setFailureData] = useState([]);
   const [correctData, setCorrectData] = useState([]);
   const [fadeAnim] = useState(new Animated.Value(1));
-  const [subscription, setSubscription] = useState(null);
-  const [showLimitModal, setShowLimitModal] = useState(false);
-  const [quizzesLeft, setQuizzesLeft] = useState(0);
-
-  // Result modal animations
-  const [resultFadeAnim] = useState(new Animated.Value(0));
-  const [star1Anim] = useState(new Animated.Value(0));
-  const [star2Anim] = useState(new Animated.Value(0));
-  const [star3Anim] = useState(new Animated.Value(0));
-  const [scoreCountAnim] = useState(new Animated.Value(0));
 
   const router = useRouter();
 
@@ -81,29 +63,8 @@ const App = () => {
     initializeApp();
   }, []);
 
-  // Auto-speak when question changes and sound is on
-  useEffect(() => {
-    if (isSoundOn && currentQuestionIndex < quizData.length) {
-      speakWord();
-    }
-  }, [currentQuestionIndex, isSoundOn]);
-
   const initializeApp = async () => {
-    await initializeSubscriptionTables();
-    await checkQuizAccess();
     await ensureAchievementsTable();
-  };
-
-  const checkQuizAccess = async () => {
-    const quizAccess = await canStartQuiz();
-    const subStatus = await getSubscriptionStatus();
-
-    setSubscription(subStatus);
-    setQuizzesLeft(quizAccess.quizzesLeft);
-
-    if (!quizAccess.canStart) {
-      setShowLimitModal(true);
-    }
   };
 
   const ensureAchievementsTable = async () => {
@@ -215,56 +176,6 @@ const App = () => {
 
   const toggleSound = () => setSoundOn(!isSoundOn);
 
-  const triggerResultAnimations = () => {
-    // Reset all animations
-    resultFadeAnim.setValue(0);
-    star1Anim.setValue(0);
-    star2Anim.setValue(0);
-    star3Anim.setValue(0);
-    scoreCountAnim.setValue(0);
-
-    // Sequence of animations
-    Animated.sequence([
-      // Fade in the modal
-      Animated.timing(resultFadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      // Pop in stars one by one
-      Animated.timing(star1Anim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.timing(star2Anim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.timing(star3Anim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Count up the score independently
-    Animated.timing(scoreCountAnim, {
-      toValue: 1,
-      duration: 1500,
-      useNativeDriver: false,
-    }).start();
-  };
-
-  const calculateStars = () => {
-    const percentage = (score / quizData.length) * 100;
-    if (percentage === 100) return 3;
-    if (percentage >= 85) return 3;
-    if (percentage >= 70) return 2;
-    return 1;
-  };
-
   const handleButtonClick = (handlerFunction) => {
     return () => {
       if (!isProcessingClick) {
@@ -316,15 +227,12 @@ const App = () => {
       );
 
       failureData.push(
-        `${article} ${currentQuestion.question} => ✓ ${currentQuestion.correctAnswer} ${currentQuestion.question}`,
+        `${article} ${currentQuestion.question} => âœ”ï¸ ${currentQuestion.correctAnswer} ${currentQuestion.question}`,
       );
     }
 
     if (currentQuestionIndex + 1 >= quizData.length) {
       setShowModal(true);
-
-      // Trigger result animations
-      triggerResultAnimations();
 
       const sessionEndTime = Date.now();
       const sessionDuration = Math.round(
@@ -383,9 +291,6 @@ const App = () => {
           sessionDuration,
           isPerfect,
         );
-
-        await incrementQuizCount();
-        await checkQuizAccess();
       } catch (error) {
         console.error("âŒ Save error:", error);
       }
@@ -536,13 +441,6 @@ const App = () => {
     setQuestionTimes([]);
     setCurrentStreak(0);
     setBestStreakInSession(0);
-
-    // Reset animations
-    resultFadeAnim.setValue(0);
-    star1Anim.setValue(0);
-    star2Anim.setValue(0);
-    star3Anim.setValue(0);
-    scoreCountAnim.setValue(0);
   };
 
   const handleNewQuiz = () => {
@@ -564,13 +462,6 @@ const App = () => {
     setQuestionTimes([]);
     setCurrentStreak(0);
     setBestStreakInSession(0);
-
-    // Reset animations
-    resultFadeAnim.setValue(0);
-    star1Anim.setValue(0);
-    star2Anim.setValue(0);
-    star3Anim.setValue(0);
-    scoreCountAnim.setValue(0);
   };
 
   useEffect(() => {
@@ -622,18 +513,6 @@ const App = () => {
                 ]}
               />
             </View>
-            {!subscription?.isPremium && !subscription?.isInTrial && (
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: "#64748b",
-                  textAlign: "center",
-                  marginTop: 4,
-                }}
-              >
-                {quizzesLeft} quizzes left today
-              </Text>
-            )}
           </View>
 
           <TouchableOpacity
@@ -671,13 +550,7 @@ const App = () => {
           </View>
         </Animated.View>
 
-        <View
-          style={[
-            styles.buttonContainer,
-            (subscription?.isPremium || subscription?.isInTrial) &&
-              styles.buttonContainerPremium,
-          ]}
-        >
+        <View style={styles.buttonContainer}>
           {["der", "die", "das"].map((article) => (
             <TouchableOpacity
               key={article}
@@ -705,144 +578,62 @@ const App = () => {
           ))}
         </View>
 
-        {!subscription?.isPremium && !subscription?.isInTrial && (
-          <View style={styles.bannerContainer}>
-            <ABanner />
-          </View>
-        )}
+        <View style={styles.bannerContainer}>
+          <ABanner />
+        </View>
 
         <Modal
           visible={showModal}
           transparent={true}
-          animationType="none"
+          animationType="fade"
           onRequestClose={handleMenu}
         >
           <View style={styles.modalOverlay}>
-            <Animated.View
-              style={[styles.modalCard, { opacity: resultFadeAnim }]}
-            >
+            <View style={styles.modalCard}>
               <ScrollView
                 style={styles.modalScrollView}
                 contentContainerStyle={styles.modalScrollContent}
                 showsVerticalScrollIndicator={false}
               >
-                {/* Animated Title */}
-                <Text style={styles.resultTitle}>
+                <View style={styles.modalIconContainer}>
+                  <MaterialCommunityIcons
+                    name={
+                      score === quizData.length
+                        ? "trophy-award"
+                        : score >= quizData.length * 0.7
+                          ? "emoticon-happy"
+                          : "emoticon"
+                    }
+                    size={64}
+                    color={
+                      score === quizData.length
+                        ? "#fbbf24"
+                        : score >= quizData.length * 0.7
+                          ? "#10b981"
+                          : "#6366f1"
+                    }
+                  />
+                </View>
+
+                <Text style={styles.modalTitle}>
                   {score === quizData.length
-                    ? "🌟 Perfect!"
-                    : calculateStars() === 3
-                      ? "🎉 Amazing!"
-                      : calculateStars() === 2
-                        ? "👍 Good!"
-                        : "💪 Keep Going!"}
+                    ? "Perfect Score! ðŸŽ‰"
+                    : score >= quizData.length * 0.7
+                      ? "Great Job! ðŸ‘"
+                      : "Keep Practicing! ðŸ’ª"}
                 </Text>
 
-                {/* Animated Stars */}
-                <View style={styles.starsContainer}>
-                  <Animated.View
-                    style={{
-                      transform: [
-                        {
-                          scale: star1Anim.interpolate({
-                            inputRange: [0, 0.5, 1],
-                            outputRange: [0, 1.5, 1],
-                          }),
-                        },
-                      ],
-                      opacity: star1Anim,
-                    }}
-                  >
-                    <Text style={styles.starIcon}>⭐</Text>
-                  </Animated.View>
-
-                  <Animated.View
-                    style={{
-                      transform: [
-                        {
-                          scale: star2Anim.interpolate({
-                            inputRange: [0, 0.5, 1],
-                            outputRange: [0, 1.5, 1],
-                          }),
-                        },
-                      ],
-                      opacity: star2Anim,
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.starIcon,
-                        calculateStars() < 2 && styles.starEmpty,
-                      ]}
-                    >
-                      ⭐
-                    </Text>
-                  </Animated.View>
-
-                  <Animated.View
-                    style={{
-                      transform: [
-                        {
-                          scale: star3Anim.interpolate({
-                            inputRange: [0, 0.5, 1],
-                            outputRange: [0, 1.5, 1],
-                          }),
-                        },
-                      ],
-                      opacity: star3Anim,
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.starIcon,
-                        calculateStars() < 3 && styles.starEmpty,
-                      ]}
-                    >
-                      ⭐
-                    </Text>
-                  </Animated.View>
+                <View style={styles.scoreCard}>
+                  <Text style={styles.modalScoreNumber}>{score}</Text>
+                  <Text style={styles.modalScoreDivider}>/</Text>
+                  <Text style={styles.modalScoreTotal}>{quizData.length}</Text>
                 </View>
 
-                {/* Animated Score */}
-                <View style={styles.totalScoreContainer}>
-                  <Text style={styles.totalScoreLabel}>Your Score</Text>
-                  <View style={styles.scoreRow}>
-                    <Animated.Text style={styles.totalScoreValue}>
-                      {scoreCountAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [1, score], // Start from 1 instead of 0
-                      })}
-                    </Animated.Text>
-                    <Text style={styles.totalScoreDivider}>/</Text>
-                    <Text style={styles.totalScoreTotal}>
-                      {quizData.length}
-                    </Text>
-                  </View>
-                  {score === quizData.length && (
-                    <Text style={styles.perfectBadge}>🎊 Perfect Score!</Text>
-                  )}
-                </View>
-
-                {/* Stats Grid */}
-                <View style={styles.statsGrid}>
-                  <View style={styles.statBox}>
-                    <Text style={styles.statBoxValue}>
-                      {((score / quizData.length) * 100).toFixed(0)}%
-                    </Text>
-                    <Text style={styles.statBoxLabel}>Accuracy</Text>
-                  </View>
-
-                  <View style={styles.statBox}>
-                    <Text style={styles.statBoxValue}>
-                      {bestStreakInSession}
-                    </Text>
-                    <Text style={styles.statBoxLabel}>Best Streak</Text>
-                  </View>
-
-                  <View style={styles.statBox}>
-                    <Text style={styles.statBoxValue}>{fails}</Text>
-                    <Text style={styles.statBoxLabel}>Mistakes</Text>
-                  </View>
-                </View>
+                <Text style={styles.modalSubtitle}>
+                  {score === quizData.length
+                    ? "You're a German article master!"
+                    : `You got ${((score / quizData.length) * 100).toFixed(0)}% correct!`}
+                </Text>
 
                 {fails > 0 && (
                   <View style={styles.modalWrongAnswers}>
@@ -879,7 +670,6 @@ const App = () => {
                   <TouchableOpacity
                     style={[styles.modalButton, styles.primaryButton]}
                     onPress={handleNewQuiz}
-                    activeOpacity={0.8}
                   >
                     <MaterialCommunityIcons
                       name="refresh"
@@ -891,103 +681,26 @@ const App = () => {
 
                   <TouchableOpacity
                     style={[styles.modalButton, styles.primaryButton]}
-                    onPress={() => {
-                      handleMenu();
-                      router.push("/statistics");
-                    }}
-                    activeOpacity={0.8}
+                    onPress={handleRetry}
                   >
                     <MaterialCommunityIcons
-                      name="chart-box"
+                      name="replay"
                       size={20}
                       color="#fff"
                     />
                     <Text style={styles.primaryButtonText}>
-                      View Statistics
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.secondaryButton}
-                    onPress={handleMenu}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.secondaryButtonText}>Back to Menu</Text>
-                  </TouchableOpacity>
-                </View>
-              </ScrollView>
-            </Animated.View>
-          </View>
-        </Modal>
-
-        <Modal visible={showLimitModal} transparent={true} animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { maxHeight: undefined }]}>
-              <View style={{ padding: 32, alignItems: "center" }}>
-                <MaterialCommunityIcons
-                  name="lock-clock"
-                  size={64}
-                  color="#f59e0b"
-                />
-                <Text style={styles.modalTitle}>Daily Limit Reached</Text>
-                <Text style={styles.modalSubtitle}>
-                  You've completed {5 - quizzesLeft} out of 5 free quizzes
-                  today.
-                </Text>
-
-                {subscription?.isInTrial && (
-                  <View
-                    style={{
-                      backgroundColor: "#fef3c7",
-                      padding: 16,
-                      borderRadius: 12,
-                      marginVertical: 16,
-                      width: "100%",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: "#92400e",
-                        textAlign: "center",
-                        fontWeight: "600",
-                      }}
-                    >
-                      🎉 You have {subscription.daysLeftInTrial} days left in
-                      your free trial!
-                    </Text>
-                  </View>
-                )}
-
-                <View style={{ width: "100%", gap: 12, marginTop: 16 }}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.primaryButton]}
-                    onPress={() => {
-                      setShowLimitModal(false);
-                      router.push("/SubscriptionScreen");
-                    }}
-                  >
-                    <MaterialCommunityIcons
-                      name="crown"
-                      size={20}
-                      color="#fff"
-                    />
-                    <Text style={styles.primaryButtonText}>
-                      Go Premium - Unlimited Quizzes
+                      Retry Same Quiz
                     </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     style={styles.textButton}
-                    onPress={() => {
-                      setShowLimitModal(false);
-                      router.back();
-                    }}
+                    onPress={handleMenu}
                   >
-                    <Text style={styles.textButtonText}>Back to Menu</Text>
+                    <Text style={styles.textButtonText}>ZurÃ¼ck zum MenÃ¼</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              </ScrollView>
             </View>
           </View>
         </Modal>
@@ -1112,9 +825,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 24,
     gap: 12,
-  },
-  buttonContainerPremium: {
-    paddingBottom: 80, // More space at bottom when no banner
   },
   answerButton: {
     flex: 1,
@@ -1293,140 +1003,6 @@ const styles = StyleSheet.create({
     color: "#64748b",
     fontSize: 15,
     fontWeight: "600",
-  },
-  // New animated result modal styles
-  resultTitle: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#1e293b",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  starsContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 24,
-    gap: 12,
-  },
-  starIcon: {
-    fontSize: 56,
-  },
-  starEmpty: {
-    opacity: 0.25,
-  },
-  totalScoreContainer: {
-    backgroundColor: "#f0fdf4",
-    padding: 20,
-    borderRadius: 16,
-    alignItems: "center",
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: "#10b981",
-  },
-  totalScoreLabel: {
-    fontSize: 14,
-    color: "#065f46",
-    marginBottom: 8,
-    fontWeight: "600",
-  },
-  scoreRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  totalScoreValue: {
-    fontSize: 48,
-    fontWeight: "800",
-    color: "#10b981",
-  },
-  totalScoreDivider: {
-    fontSize: 32,
-    fontWeight: "600",
-    color: "#94a3b8",
-    marginHorizontal: 8,
-  },
-  totalScoreTotal: {
-    fontSize: 32,
-    fontWeight: "600",
-    color: "#64748b",
-  },
-  perfectBadge: {
-    fontSize: 16,
-    color: "#f59e0b",
-    fontWeight: "700",
-    marginTop: 8,
-  },
-  statsGrid: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 20,
-    gap: 12,
-  },
-  statBox: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  statBoxValue: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#1e293b",
-    marginBottom: 4,
-  },
-  statBoxLabel: {
-    fontSize: 12,
-    color: "#64748b",
-    fontWeight: "600",
-  },
-  detailsContainer: {
-    backgroundColor: "#f8fafc",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  detailsTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1e293b",
-    marginBottom: 12,
-  },
-  detailRow: {
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  mistakeItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-    gap: 8,
-  },
-  correctItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingLeft: 24,
-    gap: 8,
-  },
-  moreText: {
-    fontSize: 13,
-    color: "#64748b",
-    fontWeight: "600",
-    textAlign: "center",
-    marginTop: 8,
-  },
-  secondaryButton: {
-    paddingVertical: 14,
-    alignItems: "center",
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1e293b",
   },
 });
 

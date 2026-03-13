@@ -11,23 +11,21 @@ import {
   Alert,
 } from "react-native";
 import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter, Stack, useFocusEffect } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import * as Speech from "expo-speech";
 import { openDatabaseSync } from "expo-sqlite";
 import ABanner from "./banner";
 import { OwlEmoji } from "./images/OwlIcon";
-import SubscriptionScreen from "./SubscriptionScreen";
-import { useCallback } from "react";
 
 const db = openDatabaseSync("appdata.db");
 
 const RANKS = [
-  { minPerfect: 0, name: "Student", color: "#94a3b8", emoji: "📚" },
-  { minPerfect: 1, name: "Scholar", color: "#60a5fa", emoji: "🎓" },
-  { minPerfect: 3, name: "Bachelor", color: "#8b5cf6", emoji: "🎓⭐" },
-  { minPerfect: 5, name: "Master", color: "#10b981", emoji: "🎓⭐⭐" },
-  { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "🧪" },
-  { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "🦉" },
+  { minPerfect: 0, name: "Student", color: "#94a3b8", emoji: "ðŸ“š" },
+  { minPerfect: 1, name: "Scholar", color: "#60a5fa", emoji: "ðŸŽ“" },
+  { minPerfect: 3, name: "Bachelor", color: "#8b5cf6", emoji: "ðŸŽ“â­" },
+  { minPerfect: 5, name: "Master", color: "#10b981", emoji: "ðŸŽ“â­â­" },
+  { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "ðŸ§ªðŸ‘¨â€ðŸ”¬" },
+  { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "ðŸ¦‰ðŸ‘‘" },
 ];
 
 const ACHIEVEMENTS = [
@@ -35,28 +33,28 @@ const ACHIEVEMENTS = [
     id: "achievementFirstStar",
     icon: "star",
     color: "#fbbf24",
-    label: "⭐ First Star",
+    label: "â­ First Star",
     requirement: 1,
   },
   {
     id: "achievementGoldenStudent",
     icon: "trophy",
     color: "#f59e0b",
-    label: "🏅 Golden Student",
+    label: "ðŸ… Golden Student",
     requirement: 5,
   },
   {
     id: "achievementDoctoralAward",
     icon: "medal",
     color: "#8b5cf6",
-    label: "🎖️ Doctoral Award",
+    label: "ðŸŽ– Doctoral Award",
     requirement: 10,
   },
   {
     id: "achievementProfessorBadge",
     icon: "crown",
     color: "#ef4444",
-    label: "👑 Professor Badge",
+    label: "ðŸ‘‘ Professor Badge",
     requirement: 20,
   },
 ];
@@ -99,13 +97,6 @@ export default function Page() {
       ]),
     ).start();
   }, []);
-
-  // Reload stats whenever the screen comes into focus (user returns from trainer)
-  useFocusEffect(
-    useCallback(() => {
-      loadUserStats();
-    }, []),
-  );
 
   useEffect(() => {
     if (achievements) {
@@ -363,33 +354,27 @@ export default function Page() {
 
   const TUTORIAL_STEPS = [
     {
-      title: "Welcome to Article Trainer! 🎉",
+      title: "Welcome to Article Trainer! ðŸŽ‰",
       description:
         "Learn German articles (der, die, das) through quizzes and track your progress!",
       icon: "rocket",
       color: "#007AFF",
     },
     {
-      title: "Perfect Scores = Stars ⭐",
+      title: "Perfect Scores = Stars â­",
       description:
         "Get 20/20 in a quiz to earn a Perfect Score! These unlock ranks and achievements.",
       icon: "star",
       color: "#fbbf24",
     },
     {
-      title: "Rank System 🏆",
-      description: `Start as Student, progress through Scholar, Bachelor, Master, Doctor, and finally Professor!
-
-• Scholar: 1 star
-• Bachelor: 3 stars
-• Master: 5 stars
-• Doctor: 10 stars
-• Professor: 20 stars`,
+      title: "Rank System ðŸ†",
+      description: `Start as Student, progress through Scholar, Bachelor, Master, Doctor, and finally Professor!\n\nâ€¢ Scholar: 1 star\nâ€¢ Bachelor: 3 stars\nâ€¢ Master: 5 stars\nâ€¢ Doctor: 10 stars\nâ€¢ Professor: 20 stars`,
       icon: "trophy",
       color: "#f59e0b",
     },
     {
-      title: "Daily Streaks 🔥",
+      title: "Daily Streaks ðŸ”¥",
       description:
         "Play every day to build your streak! Your longest streak is saved forever.",
       icon: "fire",
@@ -423,21 +408,6 @@ export default function Page() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Add this at the top of your screen */}
-        <TouchableOpacity
-          style={{
-            position: "absolute",
-            top: 10,
-            right: 10,
-            backgroundColor: "#ef4444",
-            padding: 8,
-            borderRadius: 20,
-            zIndex: 999,
-          }}
-          onPress={() => router.push("/SubscriptionDebugScreen")}
-        >
-          <MaterialCommunityIcons name="bug" size={20} color="#fff" />
-        </TouchableOpacity>
         {/* Header with Owl */}
         <View style={styles.header}>
           <TouchableOpacity onPress={speakWord} style={styles.owlContainer}>
@@ -487,7 +457,7 @@ export default function Page() {
               <View style={styles.rankInfo}>
                 <Text style={styles.rankTitle}>{currentRank.name}</Text>
                 {perfectsUntilNext > 0 && (
-                  <Text style={styles.nextRankLabel}>→ {nextRank.name}</Text>
+                  <Text style={styles.nextRankLabel}>â†’ {nextRank.name}</Text>
                 )}
               </View>
               {/* Tutorial button */}
@@ -544,7 +514,7 @@ export default function Page() {
                 </View>
               </>
             ) : (
-              <Text style={styles.maxRankText}>🎉 Max Rank Achieved!</Text>
+              <Text style={styles.maxRankText}>ðŸŽ‰ Max Rank Achieved!</Text>
             )}
           </View>
         )}
@@ -725,7 +695,7 @@ export default function Page() {
               size={60}
               color="#fbbf24"
             />
-            <Text style={styles.congratsTitle}>🎉 Congratulations! 🎉</Text>
+            <Text style={styles.congratsTitle}>ðŸŽ‰ Congratulations! ðŸŽ‰</Text>
             <Text style={styles.congratsMessage}>
               You've achieved the rank of
             </Text>
@@ -743,7 +713,7 @@ export default function Page() {
               </Text>
             </View>
             <Text style={styles.congratsSubtext}>
-              Keep up the great work! Your owl is proud! 🦉
+              Keep up the great work! Your owl is proud! ðŸ¦‰
             </Text>
             <TouchableOpacity
               style={[

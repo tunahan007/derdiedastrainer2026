@@ -18,11 +18,6 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { quizMainData } from "./words";
 import ABanner from "./banner";
 import { openDatabaseSync } from "expo-sqlite";
-import {
-  getSubscriptionStatus,
-  hasFeatureAccess,
-  FEATURES,
-} from "./SubscriptionManager";
 
 const db = openDatabaseSync("appdata.db");
 
@@ -44,7 +39,7 @@ const PracticeFailedWords = () => {
   const [failureData, setFailureData] = useState([]);
   const [correctData, setCorrectData] = useState([]);
   const [fadeAnim] = useState(new Animated.Value(1));
-  const [subscription, setSubscription] = useState(null);
+
   const [quizData, setQuizData] = useState([]);
   const [lastQuizData, setLastQuizData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,27 +50,6 @@ const PracticeFailedWords = () => {
   }, []);
 
   const initializeApp = async () => {
-    const subStatus = await getSubscriptionStatus();
-    setSubscription(subStatus);
-
-    // Check if user has premium access
-    const hasAccess = await hasFeatureAccess(FEATURES.ADVANCED_STATS);
-
-    if (!hasAccess && !subStatus?.isInTrial) {
-      Alert.alert(
-        "Premium Feature",
-        "Practice Failed Words is a premium feature. Upgrade to access!",
-        [
-          { text: "Cancel", onPress: () => router.back() },
-          {
-            text: "Go Premium",
-            onPress: () => router.push("/SubscriptionScreen"),
-          },
-        ],
-      );
-      return;
-    }
-
     await loadFailedWords();
   };
 
@@ -228,7 +202,7 @@ const PracticeFailedWords = () => {
       );
 
       failureData.push(
-        `${article} ${currentQuestion.question} => ✔️ ${currentQuestion.correctAnswer} ${currentQuestion.question}`,
+        `${article} ${currentQuestion.question} => âœ”ï¸ ${currentQuestion.correctAnswer} ${currentQuestion.question}`,
       );
     }
 
@@ -375,7 +349,7 @@ const PracticeFailedWords = () => {
           <View style={styles.failBadge}>
             <MaterialCommunityIcons name="alert" size={16} color="#ef4444" />
             <Text style={styles.failBadgeText}>
-              Failed {currentQuestion.failCount}× before
+              Failed {currentQuestion.failCount}Ã— before
             </Text>
           </View>
         )}
@@ -435,11 +409,9 @@ const PracticeFailedWords = () => {
           ))}
         </View>
 
-        {!subscription?.isPremium && !subscription?.isInTrial && (
-          <View style={styles.bannerContainer}>
-            <ABanner />
-          </View>
-        )}
+        <View style={styles.bannerContainer}>
+          <ABanner />
+        </View>
 
         {/* Results Modal */}
         <Modal
@@ -477,10 +449,10 @@ const PracticeFailedWords = () => {
 
                 <Text style={styles.modalTitle}>
                   {score === quizData.length
-                    ? "Perfect! 🎉"
+                    ? "Perfect! ðŸŽ‰"
                     : score >= quizData.length * 0.7
-                      ? "Great Progress! 👏"
-                      : "Keep Practicing! 💪"}
+                      ? "Great Progress! ðŸ‘"
+                      : "Keep Practicing! ðŸ’ª"}
                 </Text>
 
                 <View style={styles.scoreCard}>
