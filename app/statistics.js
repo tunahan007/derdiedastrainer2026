@@ -51,7 +51,7 @@ const Statistics = () => {
           duration: 1000,
           useNativeDriver: true,
         }),
-      ])
+      ]),
     ).start();
 
     loadData();
@@ -127,12 +127,12 @@ const Statistics = () => {
       `);
 
       const rows = await db.getAllAsync(
-        "SELECT * FROM statistics ORDER BY date DESC LIMIT 20"
+        "SELECT * FROM statistics ORDER BY date DESC LIMIT 20",
       );
       setStats(rows);
 
       const achievementRow = await db.getFirstAsync(
-        "SELECT * FROM achievements WHERE userId = 'default'"
+        "SELECT * FROM achievements WHERE userId = 'default'",
       );
       setAchievements(achievementRow);
 
@@ -272,8 +272,9 @@ const Statistics = () => {
       // Then try to load data
       const words = await db.getAllAsync(
         `SELECT * FROM failed_words 
+         WHERE failCount > 0
          ORDER BY failCount DESC, lastFailed DESC 
-         LIMIT 5`
+         LIMIT 5`,
       );
       setFailedWords(words || []);
     } catch (error) {
@@ -392,10 +393,10 @@ const Statistics = () => {
 
         <TouchableOpacity
           style={styles.practiceButton}
-          onPress={() => router.push("/trainer")}
+          onPress={() => router.push("/practicefailedwords")}
         >
           <MaterialCommunityIcons name="school" size={20} color="#fff" />
-          <Text style={styles.practiceButtonText}>Start Practice</Text>
+          <Text style={styles.practiceButtonText}>Practice Failed Words</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -446,8 +447,8 @@ const Statistics = () => {
                       (item.progressPercent || 0) >= 80
                         ? "#10b981"
                         : (item.progressPercent || 0) >= 60
-                        ? "#f59e0b"
-                        : "#ef4444",
+                          ? "#f59e0b"
+                          : "#ef4444",
                   },
                 ]}
               >
@@ -904,6 +905,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#6366f1",
     paddingVertical: 12,
     borderRadius: 12,
+    marginBottom: 20,
   },
   practiceButtonText: {
     color: "#fff",
