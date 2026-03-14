@@ -11,13 +11,13 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
-
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tunakhan007.derdiedastrainer"
     },
-
     "android": {
       "package": "com.tunakhan007.derdiedastrainer",
       "versionCode": 10,
@@ -25,9 +25,11 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
     },
-
     "plugins": [
       "expo-router",
       "expo-sqlite",
@@ -37,9 +39,9 @@
           "androidAppId": "ca-app-pub-3818927199662677~9916153898",
           "iosAppId": "ca-app-pub-3940256099942544~1458002511"
         }
-      ]
+      ],
+      "expo-localization"
     ],
-
     "extra": {
       "router": {
         "origin": false
