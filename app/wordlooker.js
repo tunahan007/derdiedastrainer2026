@@ -15,6 +15,8 @@ import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
 import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
 import { quizMainData } from "./words";
+import { TRANSLATIONS } from "./translations";
+import { SENTENCES } from "./sentences_data";
 import WordIcon, { CATEGORY_THEME } from "./WordIcon";
 import ABanner from "./banner";
 import { useTranslation } from "react-i18next";
@@ -41,7 +43,7 @@ const buildWordList = (level) => {
   const filtered =
     !level || level === "Alle"
       ? quizMainData
-      : quizMainData.filter((w) => w.level === level);
+      : quizMainData.filter((w) => w.l === level);
   return shuffleArray(filtered.length >= 5 ? filtered : quizMainData);
 };
 
@@ -68,7 +70,7 @@ const App = () => {
     if (!word) return "";
     const lang = i18n.language;
     return (
-      word.translations?.[lang] || word.translations?.["en"] || word.englishName
+      TRANSLATIONS[word?.q]?.[lang] || TRANSLATIONS[word?.q]?.["en"] || word?.en
     );
   };
 
@@ -78,7 +80,7 @@ const App = () => {
     if (currentQuestionIndex >= quizData.length) return;
     Speech.stop();
     const w = quizData[currentQuestionIndex];
-    const text = `${w.correctAnswer} ${w.question}`;
+    const text = `${w.a} ${w.q}`;
     if (isSoundOn) Speech.speak(text, { language: "de" });
   };
 
@@ -244,13 +246,13 @@ const App = () => {
           <TouchableOpacity
             onPress={() => {
               speakWord();
-              if (current?.sentences) setShowSentencePopup(true);
+              if (SENTENCES[current?.q]) setShowSentencePopup(true);
             }}
             activeOpacity={0.85}
             style={styles.imageContainer}
           >
-            {current?.image ? (
-              <Image source={current.image} style={styles.image} />
+            {current?.img ? (
+              <Image source={current.img} style={styles.image} />
             ) : (
               <WordIcon word={current} size={240} />
             )}
@@ -258,7 +260,7 @@ const App = () => {
               <FontAwesome name="volume-up" size={14} color="#6366f1" />
               <Text style={styles.speakHintText}>{t("tapToHear")}</Text>
             </View>
-            {current?.sentences && (
+            {SENTENCES[current?.q] && (
               <View style={styles.sentenceHint}>
                 <MaterialCommunityIcons
                   name="text-box-outline"
@@ -278,17 +280,15 @@ const App = () => {
             <View
               style={[styles.articleBadge, { backgroundColor: levelColor }]}
             >
-              <Text style={styles.articleBadgeText}>
-                {current?.correctAnswer}
-              </Text>
+              <Text style={styles.articleBadgeText}>{current?.a}</Text>
             </View>
 
-            <Text style={styles.word}>{current?.question}</Text>
+            <Text style={styles.word}>{current?.q}</Text>
             <Text style={styles.englishWord}>{getTranslation(current)}</Text>
 
             {/* Level + Category tags */}
             <View style={styles.tagsRow}>
-              {current?.level && (
+              {current?.l && (
                 <View
                   style={[
                     styles.tag,
@@ -303,7 +303,7 @@ const App = () => {
                   </Text>
                 </View>
               )}
-              {current?.category && (
+              {current?.c && (
                 <View style={styles.tagCategory}>
                   <Text style={styles.tagCategoryText}>
                     {CATEGORY_THEME[current.category]?.emoji || "📝"}{" "}
@@ -380,7 +380,7 @@ const App = () => {
                   const count =
                     level === "Alle"
                       ? quizMainData.length
-                      : quizMainData.filter((w) => w.level === level).length;
+                      : quizMainData.filter((w) => w.l === level).length;
                   return (
                     <TouchableOpacity
                       key={level}
@@ -475,18 +475,13 @@ const App = () => {
                     style={[
                       styles.articleMini,
                       {
-                        backgroundColor:
-                          LEVEL_COLORS[current?.level] || "#6366f1",
+                        backgroundColor: LEVEL_COLORS[current?.l] || "#6366f1",
                       },
                     ]}
                   >
-                    <Text style={styles.articleMiniText}>
-                      {current?.correctAnswer}
-                    </Text>
+                    <Text style={styles.articleMiniText}>{current?.a}</Text>
                   </View>
-                  <Text style={styles.sentenceWordTitle}>
-                    {current?.question}
-                  </Text>
+                  <Text style={styles.sentenceWordTitle}>{current?.q}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setShowSentencePopup(false)}>
                   <MaterialCommunityIcons
@@ -501,7 +496,7 @@ const App = () => {
               <View style={styles.sentenceMainCard}>
                 <Text style={styles.sentenceNomLabel}>Nominativ</Text>
                 <Text style={styles.sentenceNomText}>
-                  {current?.sentences?.nom}
+                  {SENTENCES[current?.q]?.n}
                 </Text>
               </View>
 

@@ -17,6 +17,8 @@ import * as Speech from "expo-speech";
 import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
 import "expo-dev-client";
 import { quizMainData } from "./words";
+import { TRANSLATIONS } from "./translations";
+import { SENTENCES } from "./sentences_data";
 import WordIcon from "./WordIcon";
 import { useTranslation } from "react-i18next";
 import ABanner from "./banner";
@@ -59,13 +61,13 @@ const App = () => {
 
   const router = useRouter();
   const params = useLocalSearchParams();
-  const levelParam = params?.level || "Alle"; // "Alle" | "A1" | "A2" | "B1"
+  const levelParam = params?.l || "Alle"; // "Alle" | "A1" | "A2" | "B1"
 
   const buildQuiz = (lvl) => {
     const filtered =
       !lvl || lvl === "Alle"
         ? quizMainData
-        : quizMainData.filter((w) => w.level === lvl);
+        : quizMainData.filter((w) => w.l === lvl);
     // fallback: if filtered is too small, use all words
     const pool = filtered.length >= 10 ? filtered : quizMainData;
     console.log(`🎯 Level: ${lvl}, Pool: ${pool.length} words`);
@@ -274,7 +276,7 @@ const App = () => {
 
   const speakWord = () => {
     Speech.stop();
-    const word = quizData[currentQuestionIndex]?.question;
+    const word = quizData[currentQuestionIndex]?.q;
     if (isSoundOn && currentQuestionIndex < quizData.length) {
       try {
         Speech.speak(word, { language: "de" });
@@ -309,7 +311,7 @@ const App = () => {
     if (showModal) setButtonDisabled(true);
 
     const currentQuestion = quizData[currentQuestionIndex];
-    const isCorrect = currentQuestion.correctAnswer === article;
+    const isCorrect = currentQuestion.a === article;
 
     // Time tracking
     const elapsed = Math.round((Date.now() - questionStartTime) / 1000);
@@ -328,7 +330,7 @@ const App = () => {
       if (newStreak > newBestStreak) newBestStreak = newStreak;
       setBestSessionStreak(newBestStreak);
       setCurrentStreak(newStreak);
-      correctData.push(article + " " + currentQuestion.question);
+      correctData.push(article + " " + currentQuestion.q);
     } else {
       newFails++;
       setFails(newFails);
@@ -337,24 +339,20 @@ const App = () => {
       setCurrentStreak(0);
 
       if (dbReady) {
-        await saveFailedWord(
-          currentQuestion.question,
-          currentQuestion.correctAnswer,
-          article,
-        );
+        await saveFailedWord(currentQuestion.q, currentQuestion.a, article);
       }
       failureData.push(
-        `${article} ${currentQuestion.question} => ✔️ ${currentQuestion.correctAnswer} ${currentQuestion.question}`,
+        `${article} ${currentQuestion.q} => ✔️ ${currentQuestion.a} ${currentQuestion.q}`,
       );
     }
 
     // Update word_progress for every answered question
     if (dbReady) {
       await updateWordProgress(
-        currentQuestion.question,
-        currentQuestion.correctAnswer,
-        currentQuestion.level,
-        currentQuestion.category,
+        currentQuestion.q,
+        currentQuestion.a,
+        currentQuestion.l,
+        currentQuestion.c,
         isCorrect,
       );
     }
@@ -629,9 +627,9 @@ const App = () => {
             activeOpacity={0.8}
             style={styles.imageContainer}
           >
-            {quizData[currentQuestionIndex]?.image ? (
+            {quizData[currentQuestionIndex]?.img ? (
               <Image
-                source={quizData[currentQuestionIndex].image}
+                source={quizData[currentQuestionIndex].img}
                 style={styles.image}
               />
             ) : (
@@ -644,25 +642,23 @@ const App = () => {
           </TouchableOpacity>
 
           <View style={styles.wordContainer}>
-            <Text style={styles.word}>
-              {quizData[currentQuestionIndex]?.question}
-            </Text>
+            <Text style={styles.word}>{quizData[currentQuestionIndex]?.q}</Text>
             <Text style={styles.englword}>
               {(() => {
                 const word = quizData[currentQuestionIndex];
                 if (!word) return "";
                 const lang = i18n.language;
                 return (
-                  word.translations?.[lang] ||
-                  word.translations?.["en"] ||
-                  word.englishName
+                  TRANSLATIONS[word?.q]?.[lang] ||
+                  TRANSLATIONS[word?.q]?.["en"] ||
+                  word?.en
                 );
               })()}
             </Text>
-            {quizData[currentQuestionIndex]?.level && (
+            {quizData[currentQuestionIndex]?.l && (
               <View style={styles.levelBadge}>
                 <Text style={styles.levelBadgeText}>
-                  {quizData[currentQuestionIndex].level}
+                  {quizData[currentQuestionIndex].l}
                 </Text>
               </View>
             )}

@@ -15,6 +15,8 @@ import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
 import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
 import { quizMainData } from "./words";
+import { TRANSLATIONS } from "./translations";
+import { SENTENCES } from "./sentences_data";
 import WordIcon, { CATEGORY_THEME } from "./WordIcon";
 import ABanner from "./banner";
 import { useTranslation } from "react-i18next";
@@ -29,10 +31,10 @@ const LEVEL_COLORS = {
 };
 
 const CASES = [
-  { key: "nom", label: "Nominativ", color: "#10b981", icon: "alpha-n-circle" },
-  { key: "akk", label: "Akkusativ", color: "#3b82f6", icon: "alpha-a-circle" },
-  { key: "dat", label: "Dativ", color: "#8b5cf6", icon: "alpha-d-circle" },
-  { key: "gen", label: "Genitiv", color: "#f59e0b", icon: "alpha-g-circle" },
+  { key: "n", label: "Nominativ", color: "#10b981", icon: "alpha-n-circle" },
+  { key: "a", label: "Akkusativ", color: "#3b82f6", icon: "alpha-a-circle" },
+  { key: "d", label: "Dativ", color: "#8b5cf6", icon: "alpha-d-circle" },
+  { key: "g", label: "Genitiv", color: "#f59e0b", icon: "alpha-g-circle" },
 ];
 
 const shuffleArray = (arr) => {
@@ -45,9 +47,9 @@ const shuffleArray = (arr) => {
 };
 
 const buildList = (level) => {
-  const base = quizMainData.filter((w) => w.sentences);
+  const base = quizMainData.filter((w) => SENTENCES[w?.q]);
   const filtered =
-    !level || level === "Alle" ? base : base.filter((w) => w.level === level);
+    !level || level === "Alle" ? base : base.filter((w) => w.l === level);
   return shuffleArray(filtered.length >= 5 ? filtered : base);
 };
 
@@ -63,7 +65,7 @@ export default function SentencesScreen() {
   const [showModal, setShowModal] = useState(false);
   const [isSoundOn, setSoundOn] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [activeCase, setActiveCase] = useState("nom");
+  const [activeCase, setActiveCase] = useState("n");
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const buttonAnim = useRef(new Animated.Value(0)).current;
@@ -78,14 +80,14 @@ export default function SentencesScreen() {
     if (!word) return "";
     const lang = i18n.language;
     return (
-      word.translations?.[lang] || word.translations?.["en"] || word.englishName
+      TRANSLATIONS[word?.q]?.[lang] || TRANSLATIONS[word?.q]?.["en"] || word?.en
     );
   };
 
   const speakSentence = (caseKey = activeCase) => {
-    if (!current?.sentences) return;
+    if (!SENTENCES[current?.q]) return;
     Speech.stop();
-    const text = current.sentences[caseKey] || "";
+    const text = SENTENCES[current?.q][caseKey] || "";
     if (isSoundOn && text) Speech.speak(text, { language: "de" });
   };
 
@@ -119,7 +121,7 @@ export default function SentencesScreen() {
     } else {
       animateTransition(() => {
         setCurrentIndex((i) => i + 1);
-        setActiveCase("nom");
+        setActiveCase("n");
       });
     }
   };
@@ -128,7 +130,7 @@ export default function SentencesScreen() {
     if (currentIndex > 0) {
       animateTransition(() => {
         setCurrentIndex((i) => i - 1);
-        setActiveCase("nom");
+        setActiveCase("n");
       });
     }
   };
@@ -137,14 +139,14 @@ export default function SentencesScreen() {
     setSelectedLevel(level);
     setQuizData(buildList(level));
     setCurrentIndex(0);
-    setActiveCase("nom");
+    setActiveCase("n");
     setShowLevelPicker(false);
   };
 
   const handleNewList = () => {
     setQuizData(buildList(selectedLevel));
     setCurrentIndex(0);
-    setActiveCase("nom");
+    setActiveCase("n");
     setShowModal(false);
   };
 
@@ -255,7 +257,7 @@ export default function SentencesScreen() {
               activeOpacity={0.85}
               style={styles.imageContainer}
             >
-              {current?.image ? (
+              {current?.img ? (
                 <Image source={current.image} style={styles.image} />
               ) : (
                 <WordIcon word={current} size={180} />
@@ -271,15 +273,13 @@ export default function SentencesScreen() {
               <View
                 style={[styles.articleBadge, { backgroundColor: levelColor }]}
               >
-                <Text style={styles.articleBadgeText}>
-                  {current?.correctAnswer}
-                </Text>
+                <Text style={styles.articleBadgeText}>{current?.a}</Text>
               </View>
-              <Text style={styles.wordText}>{current?.question}</Text>
+              <Text style={styles.wordText}>{current?.q}</Text>
               <Text style={styles.wordTranslation}>
                 {getTranslation(current)}
               </Text>
-              {current?.level && (
+              {current?.l && (
                 <View
                   style={[
                     styles.levelTag,
@@ -320,7 +320,7 @@ export default function SentencesScreen() {
             </View>
 
             {/* Sentence Card */}
-            {current?.sentences ? (
+            {SENTENCES[current?.q] ? (
               <View
                 style={[
                   styles.sentenceCard,
@@ -349,7 +349,7 @@ export default function SentencesScreen() {
                   </Text>
                 </View>
                 <Text style={styles.sentenceText}>
-                  {current.sentences[activeCase]}
+                  {SENTENCES[current?.q][activeCase]}
                 </Text>
                 <TouchableOpacity
                   style={styles.speakSentenceBtn}
@@ -373,7 +373,7 @@ export default function SentencesScreen() {
             )}
 
             {/* All 4 cases overview */}
-            {current?.sentences && (
+            {SENTENCES[current?.q] && (
               <View style={styles.overviewCard}>
                 <Text style={styles.overviewTitle}>Alle Formen</Text>
                 {CASES.map((c) => (
@@ -395,7 +395,7 @@ export default function SentencesScreen() {
                         {c.label}
                       </Text>
                       <Text style={styles.overviewSentence}>
-                        {current.sentences[c.key]}
+                        {SENTENCES[current?.q][c.key]}
                       </Text>
                     </View>
                     <MaterialCommunityIcons
@@ -467,7 +467,7 @@ export default function SentencesScreen() {
                 const isSelected = selectedLevel === level;
                 const color = LEVEL_COLORS[level];
                 const total = quizMainData.filter(
-                  (w) => w.sentences && (level === "Alle" || w.level === level),
+                  (w) => SENTENCES[w?.q] && (level === "Alle" || w.l === level),
                 ).length;
                 return (
                   <TouchableOpacity
