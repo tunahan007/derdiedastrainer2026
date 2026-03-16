@@ -12,15 +12,18 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { Dimensions } from "react-native";
 import * as Speech from "expo-speech";
 import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
 import "expo-dev-client";
 import { quizMainData } from "./words";
+import WordIcon from "./WordIcon";
 import { useTranslation } from "react-i18next";
 import ABanner from "./banner";
 import { openDatabaseSync } from "expo-sqlite";
 
 const db = openDatabaseSync("appdata.db");
+const SCREEN_WIDTH = Dimensions.get("window").width;
 
 const ACHIEVEMENTS = [
   { id: "achievementFirstStar", requirement: 1 },
@@ -626,14 +629,14 @@ const App = () => {
             activeOpacity={0.8}
             style={styles.imageContainer}
           >
-            <Image
-              source={
-                quizData[currentQuestionIndex]?.image
-                  ? quizData[currentQuestionIndex]?.image
-                  : require("./images/end.png")
-              }
-              style={styles.image}
-            />
+            {quizData[currentQuestionIndex]?.image ? (
+              <Image
+                source={quizData[currentQuestionIndex].image}
+                style={styles.image}
+              />
+            ) : (
+              <WordIcon word={quizData[currentQuestionIndex]} size={240} />
+            )}
             <View style={styles.speakHint}>
               <FontAwesome name="volume-up" size={16} color="#6366f1" />
               <Text style={styles.speakHintText}>{t("tapToHear")}</Text>

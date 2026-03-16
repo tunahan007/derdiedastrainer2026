@@ -7,412 +7,438 @@ import {
   BackHandler,
   TouchableOpacity,
   Image,
-  Pressable,
   Animated,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
 import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
-import {
-  AntDesign,
-  FontAwesome,
-  MaterialCommunityIcons,
-} from "@expo/vector-icons";
-import "expo-dev-client";
-import { quizWordSentence } from "./words";
+import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
+import { quizMainData } from "./words";
+import WordIcon, { CATEGORY_THEME } from "./WordIcon";
 import ABanner from "./banner";
+import { useTranslation } from "react-i18next";
 
-const wordLimit = 100;
+// ── Constants ────────────────────────────────────────────────────────────────
+const LEVELS = ["Alle", "A1", "A2", "B1"];
+const LEVEL_COLORS = {
+  Alle: "#6366f1",
+  A1: "#10b981",
+  A2: "#3b82f6",
+  B1: "#8b5cf6",
+};
 
-const shuffleArray = (array) => {
-  const shuffledArray = [...array];
-  for (let i = shuffledArray.length - 1; i > 0; i--) {
+const CASES = [
+  { key: "nom", label: "Nominativ", color: "#10b981", icon: "alpha-n-circle" },
+  { key: "akk", label: "Akkusativ", color: "#3b82f6", icon: "alpha-a-circle" },
+  { key: "dat", label: "Dativ", color: "#8b5cf6", icon: "alpha-d-circle" },
+  { key: "gen", label: "Genitiv", color: "#f59e0b", icon: "alpha-g-circle" },
+];
+
+const shuffleArray = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [shuffledArray[i], shuffledArray[j]] = [shuffledArray[j], shuffledArray[i]];
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  return shuffledArray;
+  return a;
 };
 
-const getRandomQuestions = (sourceArray, count) => {
-  const shuffledArray = shuffleArray(sourceArray);
-  return shuffledArray.slice(0, count);
+const buildList = (level) => {
+  const base = quizMainData.filter((w) => w.sentences);
+  const filtered =
+    !level || level === "Alle" ? base : base.filter((w) => w.level === level);
+  return shuffleArray(filtered.length >= 5 ? filtered : base);
 };
 
-const getNonRandomQuestions = (sourceArray, count) => {
-  return sourceArray.slice(0, count);
-};
-
-const App = () => {
-  const [count, setCount] = useState(0);
-  const [score, setScore] = useState(0);
-  const [fails, setFails] = useState(0);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [isWrong, setIsWrong] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [isButtonDisabled, setButtonDisabled] = useState(false);
-  const [isSoundOn, setSoundOn] = useState(true);
-  const [isProcessingClick, setIsProcessingClick] = useState(false);
-
-  const toggleSound = () => {
-    setSoundOn(!isSoundOn);
-  };
-
-  const [quizData, setQuizData] = useState(
-    getRandomQuestions(quizWordSentence, wordLimit)
-  );
-  const [quizNonRandomData, setNonRandomQuizData] = useState(
-    getNonRandomQuestions(quizWordSentence, wordLimit)
-  );
-  const [failureData, setFailureData] = useState([]);
-  const [correctData, setCorrectData] = useState([]);
+// ── Component ────────────────────────────────────────────────────────────────
+export default function SentencesScreen() {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
-  const buttonAnim = useRef(new Animated.Value(0)).current;
+
+  const [selectedLevel, setSelectedLevel] = useState("Alle");
+  const [showLevelPicker, setShowLevelPicker] = useState(false);
+  const [quizData, setQuizData] = useState(() => buildList("Alle"));
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [showModal, setShowModal] = useState(false);
+  const [isSoundOn, setSoundOn] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [activeCase, setActiveCase] = useState("nom");
+
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const buttonAnim = useRef(new Animated.Value(0)).current;
 
-  const speakWord = () => {
-    if (currentQuestionIndex < quizData.length) {
-      Speech.stop();
-      const greeting = quizData[currentQuestionIndex]?.germanSentence;
-      const options = {
-        language: "de",
-      };
-      if (isSoundOn) {
-        try {
-          Speech.speak(greeting, options);
-        } catch (error) {
-          console.error("Speech.speak : " + error);
-        }
-      }
+  const current = quizData[currentIndex];
+  const levelColor = LEVEL_COLORS[selectedLevel] || "#6366f1";
+  const progressPct = ((currentIndex + 1) / quizData.length) * 100;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  const getTranslation = (word) => {
+    if (!word) return "";
+    const lang = i18n.language;
+    return (
+      word.translations?.[lang] || word.translations?.["en"] || word.englishName
+    );
+  };
+
+  const speakSentence = (caseKey = activeCase) => {
+    if (!current?.sentences) return;
+    Speech.stop();
+    const text = current.sentences[caseKey] || "";
+    if (isSoundOn && text) Speech.speak(text, { language: "de" });
+  };
+
+  const throttle = (fn) => () => {
+    if (!isProcessing) {
+      setIsProcessing(true);
+      fn();
+      setTimeout(() => setIsProcessing(false), 400);
     }
   };
 
-  const handleButtonClick = (handlerFunction) => {
-    return () => {
-      if (!isProcessingClick) {
-        setIsProcessingClick(true);
-        handlerFunction();
-        setTimeout(() => {
-          setIsProcessingClick(false);
-        }, 1000);
-      }
-    };
+  const animateTransition = (cb) => {
+    Animated.sequence([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    setTimeout(cb, 120);
   };
 
-  const handleNextDer = () => {
-    setSelectedAnswer(null);
-    setIsWrong(false);
-    setCount(count - 1);
-    if (showModal) {
-      setButtonDisabled(true);
-    }
-
-    if (!(currentQuestionIndex === 0)) {
-      // Fade animation
-      Animated.sequence([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
-    }
-
-    if (currentQuestionIndex === 0) {
+  const goNext = () => {
+    if (currentIndex + 1 >= quizData.length) {
       setShowModal(true);
     } else {
-      setTimeout(() => {
-        setSelectedAnswer(null);
-        setIsWrong(false);
-        setCurrentQuestionIndex(currentQuestionIndex - 1);
-      }, 100);
+      animateTransition(() => {
+        setCurrentIndex((i) => i + 1);
+        setActiveCase("nom");
+      });
     }
   };
 
-  const handleNextDie = () => {
-    setSelectedAnswer(null);
-    setIsWrong(false);
-    setCount(count + 1);
-    if (showModal) {
-      setButtonDisabled(true);
-    }
-    if (!(currentQuestionIndex >= quizData.length)) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-
-    const currentQuestion = quizData[currentQuestionIndex];
-
-    if (currentQuestion && currentQuestion.correctAnswer === "die") {
-      setScore((prevScore) => prevScore + 1);
-      correctData.push(currentQuestion?.germanSentence);
-    } else {
-      setIsWrong(true);
-      setFails((prevFail) => prevFail + 1);
-      failureData.push(currentQuestion?.germanSentence);
-    }
-
-    setSelectedAnswer("die");
-
-    if (currentQuestionIndex === quizData.length) {
-      setShowModal(true);
-    } else {
-      // Fade animation
-      Animated.sequence([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      setTimeout(() => {
-        setSelectedAnswer(null);
-        setIsWrong(false);
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
-      }, 100);
+  const goPrev = () => {
+    if (currentIndex > 0) {
+      animateTransition(() => {
+        setCurrentIndex((i) => i - 1);
+        setActiveCase("nom");
+      });
     }
   };
 
-  const handleNextDas = () => {
-    setSelectedAnswer(null);
-    setIsWrong(false);
-    setCount(count + 1);
-    if (showModal) {
-      setButtonDisabled(true);
-    }
-    if (!(currentQuestionIndex >= quizData.length)) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-
-    const currentQuestion = quizData[currentQuestionIndex];
-
-    if (currentQuestion && currentQuestion.correctAnswer === "das") {
-      setScore((prevScore) => prevScore + 1);
-      correctData.push(currentQuestion?.germanSentence);
-    } else {
-      setIsWrong(true);
-      setFails((prevFail) => prevFail + 1);
-      failureData.push(currentQuestion?.germanSentence);
-    }
-
-    setSelectedAnswer("das");
-
-    if (currentQuestionIndex === quizData.length) {
-      setShowModal(true);
-    } else {
-      // Fade animation
-      Animated.sequence([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      setTimeout(() => {
-        setSelectedAnswer(null);
-        setIsWrong(false);
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
-      }, 100);
-    }
+  const handleLevelChange = (level) => {
+    setSelectedLevel(level);
+    setQuizData(buildList(level));
+    setCurrentIndex(0);
+    setActiveCase("nom");
+    setShowLevelPicker(false);
   };
+
+  const handleNewList = () => {
+    setQuizData(buildList(selectedLevel));
+    setCurrentIndex(0);
+    setActiveCase("nom");
+    setShowModal(false);
+  };
+
+  // ── Effects ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     try {
-      speakWord();
-    } catch (error) {
-      console.error("Error in speakWord:", error);
-    }
+      speakSentence("nom");
+    } catch (e) {}
     buttonAnim.setValue(0);
     Animated.spring(buttonAnim, {
       toValue: 1,
       friction: 5,
       useNativeDriver: true,
     }).start();
-    if (currentQuestionIndex === quizData.length) {
-      setShowModal(true);
-    }
-  }, [currentQuestionIndex]);
-
-  const handleModalClose = () => {
-    setShowModal(false);
-    resetNonRandomQuiz();
-  };
-
-  const resetQuiz = () => {
-    setCount(0);
-    setScore(0);
-    setCurrentQuestionIndex(0);
-    setSelectedAnswer(null);
-    setIsWrong(false);
-    setFails(0);
-    setQuizData(getRandomQuestions(quizWordSentence, wordLimit));
-    setFailureData([]);
-  };
-
-  const resetNonRandomQuiz = () => {
-    setCount(0);
-    setScore(0);
-    setCurrentQuestionIndex(0);
-    setSelectedAnswer(null);
-    setIsWrong(false);
-    setFails(0);
-    setQuizData(getNonRandomQuestions(quizData, wordLimit));
-    setFailureData([]);
-  };
-
-  const handleMenu = () => {
-    router.back();
-  };
-
-  const handleNewQuiz = () => {
-    setQuizData(getRandomQuestions(quizWordSentence, wordLimit));
-    setShowModal(false);
-    resetQuiz();
-  };
+  }, [currentIndex]);
 
   useEffect(() => {
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => {
-        if (showModal) {
-          handleModalClose();
-          return true;
-        }
-        return false;
+    try {
+      speakSentence(activeCase);
+    } catch (e) {}
+  }, [activeCase]);
+
+  useEffect(() => {
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (showModal) {
+        setShowModal(false);
+        return true;
       }
-    );
-    return () => backHandler.remove();
-  }, [showModal]);
+      if (showLevelPicker) {
+        setShowLevelPicker(false);
+        return true;
+      }
+      return false;
+    });
+    return () => back.remove();
+  }, [showModal, showLevelPicker]);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   const animatedStyle = {
     transform: [
       {
         scale: buttonAnim.interpolate({
           inputRange: [0, 1],
-          outputRange: [0.8, 1],
+          outputRange: [0.85, 1],
         }),
       },
     ],
     opacity: buttonAnim,
   };
 
-  const progressPercentage =
-    ((currentQuestionIndex + 1) / quizData.length) * 100;
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Modern Header with Progress */}
+        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.iconButton} onPress={toggleSound}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => setSoundOn((p) => !p)}
+          >
             <FontAwesome
               name={isSoundOn ? "volume-up" : "volume-off"}
-              size={24}
+              size={22}
               color="#6366f1"
             />
           </TouchableOpacity>
 
           <View style={styles.progressContainer}>
             <Text style={styles.progressText}>
-              {currentQuestionIndex + 1 <= quizData.length
-                ? currentQuestionIndex + 1
-                : currentQuestionIndex}
-              {" / "}
-              {quizData.length}
+              {currentIndex + 1} / {quizData.length}
             </Text>
             <View style={styles.progressBarBg}>
               <View
                 style={[
                   styles.progressBarFill,
-                  { width: `${progressPercentage}%` },
+                  { width: `${progressPct}%`, backgroundColor: levelColor },
                 ]}
               />
             </View>
           </View>
 
-          <View style={styles.iconButton} />
+          <TouchableOpacity
+            style={[styles.levelChip, { backgroundColor: levelColor }]}
+            onPress={() => setShowLevelPicker(true)}
+          >
+            <Text style={styles.levelChipText}>
+              {selectedLevel === "Alle" ? t("allLabel") : selectedLevel}
+            </Text>
+            <MaterialCommunityIcons
+              name="chevron-down"
+              size={14}
+              color="#fff"
+            />
+          </TouchableOpacity>
         </View>
 
-        {/* Content with Animation */}
-        <Animated.View style={[styles.quizContent, { opacity: fadeAnim }]}>
-          <TouchableOpacity
-            onPress={speakWord}
-            activeOpacity={0.8}
-            style={styles.imageContainer}
-          >
-            <Image
-              source={
-                quizData[currentQuestionIndex]?.image
-                  ? quizData[currentQuestionIndex]?.image
-                  : require("./images/end.png")
-              }
-              style={styles.image}
-            />
-            <View style={styles.speakHint}>
-              <FontAwesome name="volume-up" size={16} color="#6366f1" />
-              <Text style={styles.speakHintText}>Tap to hear</Text>
+        {/* Main Content */}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View style={[styles.contentArea, { opacity: fadeAnim }]}>
+            {/* Image / WordIcon */}
+            <TouchableOpacity
+              onPress={() => speakSentence(activeCase)}
+              activeOpacity={0.85}
+              style={styles.imageContainer}
+            >
+              {current?.image ? (
+                <Image source={current.image} style={styles.image} />
+              ) : (
+                <WordIcon word={current} size={180} />
+              )}
+              <View style={styles.speakHint}>
+                <FontAwesome name="volume-up" size={13} color="#6366f1" />
+                <Text style={styles.speakHintText}>{t("tapToHear")}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Word + translation */}
+            <View style={styles.wordHeader}>
+              <View
+                style={[styles.articleBadge, { backgroundColor: levelColor }]}
+              >
+                <Text style={styles.articleBadgeText}>
+                  {current?.correctAnswer}
+                </Text>
+              </View>
+              <Text style={styles.wordText}>{current?.question}</Text>
+              <Text style={styles.wordTranslation}>
+                {getTranslation(current)}
+              </Text>
+              {current?.level && (
+                <View
+                  style={[
+                    styles.levelTag,
+                    { backgroundColor: levelColor + "20" },
+                  ]}
+                >
+                  <Text style={[styles.levelTagText, { color: levelColor }]}>
+                    {current.level}
+                  </Text>
+                </View>
+              )}
             </View>
-          </TouchableOpacity>
 
-          <View style={styles.wordContainer}>
-            <Text style={styles.word}>
-              {quizData[currentQuestionIndex]?.germanSentence}
-            </Text>
-            <Text style={styles.englword}>
-              {quizData[currentQuestionIndex]?.englishSentence}
-            </Text>
-          </View>
-        </Animated.View>
+            {/* Case Tabs */}
+            <View style={styles.caseTabs}>
+              {CASES.map((c) => (
+                <TouchableOpacity
+                  key={c.key}
+                  style={[
+                    styles.caseTab,
+                    activeCase === c.key && {
+                      backgroundColor: c.color,
+                      borderColor: c.color,
+                    },
+                  ]}
+                  onPress={() => setActiveCase(c.key)}
+                >
+                  <Text
+                    style={[
+                      styles.caseTabText,
+                      activeCase === c.key && styles.caseTabTextActive,
+                    ]}
+                  >
+                    {c.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-        {/* Navigation Buttons */}
+            {/* Sentence Card */}
+            {current?.sentences ? (
+              <View
+                style={[
+                  styles.sentenceCard,
+                  {
+                    borderLeftColor: CASES.find((c) => c.key === activeCase)
+                      ?.color,
+                  },
+                ]}
+              >
+                <View style={styles.sentenceHeader}>
+                  <MaterialCommunityIcons
+                    name={
+                      CASES.find((c) => c.key === activeCase)?.icon ||
+                      "alpha-n-circle"
+                    }
+                    size={22}
+                    color={CASES.find((c) => c.key === activeCase)?.color}
+                  />
+                  <Text
+                    style={[
+                      styles.caseLabelBig,
+                      { color: CASES.find((c) => c.key === activeCase)?.color },
+                    ]}
+                  >
+                    {CASES.find((c) => c.key === activeCase)?.label}
+                  </Text>
+                </View>
+                <Text style={styles.sentenceText}>
+                  {current.sentences[activeCase]}
+                </Text>
+                <TouchableOpacity
+                  style={styles.speakSentenceBtn}
+                  onPress={() => speakSentence(activeCase)}
+                >
+                  <FontAwesome name="volume-up" size={16} color="#6366f1" />
+                  <Text style={styles.speakSentenceBtnText}>Anhören</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.noSentenceCard}>
+                <MaterialCommunityIcons
+                  name="information-outline"
+                  size={32}
+                  color="#cbd5e1"
+                />
+                <Text style={styles.noSentenceText}>
+                  Kein Beispielsatz verfügbar
+                </Text>
+              </View>
+            )}
+
+            {/* All 4 cases overview */}
+            {current?.sentences && (
+              <View style={styles.overviewCard}>
+                <Text style={styles.overviewTitle}>Alle Formen</Text>
+                {CASES.map((c) => (
+                  <TouchableOpacity
+                    key={c.key}
+                    style={[
+                      styles.overviewRow,
+                      activeCase === c.key && {
+                        backgroundColor: c.color + "10",
+                      },
+                    ]}
+                    onPress={() => setActiveCase(c.key)}
+                  >
+                    <View
+                      style={[styles.overviewDot, { backgroundColor: c.color }]}
+                    />
+                    <View style={styles.overviewContent}>
+                      <Text style={[styles.overviewLabel, { color: c.color }]}>
+                        {c.label}
+                      </Text>
+                      <Text style={styles.overviewSentence}>
+                        {current.sentences[c.key]}
+                      </Text>
+                    </View>
+                    <MaterialCommunityIcons
+                      name="volume-high"
+                      size={18}
+                      color={c.color + "80"}
+                      onPress={() => speakSentence(c.key)}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </Animated.View>
+        </ScrollView>
+
+        {/* Navigation */}
         <Animated.View style={[styles.buttonRow, animatedStyle]}>
           <TouchableOpacity
-            onPress={handleButtonClick(handleNextDer)}
-            style={styles.navButton}
-            activeOpacity={0.7}
+            onPress={throttle(goPrev)}
+            style={[
+              styles.navButton,
+              currentIndex === 0 && styles.disabledButton,
+            ]}
+            disabled={currentIndex === 0}
           >
             <MaterialCommunityIcons
               name="skip-previous"
-              size={40}
-              color="#6366f1"
+              size={34}
+              color={currentIndex === 0 ? "#cbd5e1" : "#6366f1"}
             />
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.back()}
             style={styles.homeButton}
-            activeOpacity={0.7}
+            onPress={() => router.back()}
           >
-            <AntDesign name="home" size={32} color="#6366f1" />
+            <MaterialCommunityIcons name="home" size={26} color="#6366f1" />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={handleButtonClick(handleNextDas)}
-            style={styles.navButton}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity onPress={throttle(goNext)} style={styles.navButton}>
             <MaterialCommunityIcons
               name="skip-next"
-              size={40}
+              size={34}
               color="#6366f1"
             />
           </TouchableOpacity>
@@ -423,54 +449,94 @@ const App = () => {
           <ABanner />
         </View>
 
-        {/* Modern Modal */}
-        <Modal visible={showModal} animationType="fade" transparent={true}>
+        {/* Level Picker */}
+        <Modal visible={showLevelPicker} animationType="slide" transparent>
           <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-              <View style={styles.modalIconContainer}>
-                <MaterialCommunityIcons
-                  name="check-decagram"
-                  size={80}
-                  color="#10b981"
-                />
+            <View style={styles.pickerSheet}>
+              <View style={styles.pickerHeader}>
+                <Text style={styles.pickerTitle}>{t("selectLevel")}</Text>
+                <TouchableOpacity onPress={() => setShowLevelPicker(false)}>
+                  <MaterialCommunityIcons
+                    name="close"
+                    size={24}
+                    color="#64748b"
+                  />
+                </TouchableOpacity>
               </View>
+              {LEVELS.map((level) => {
+                const isSelected = selectedLevel === level;
+                const color = LEVEL_COLORS[level];
+                const total = quizMainData.filter(
+                  (w) => w.sentences && (level === "Alle" || w.level === level),
+                ).length;
+                return (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.pickerRow,
+                      isSelected && { backgroundColor: color + "15" },
+                    ]}
+                    onPress={() => handleLevelChange(level)}
+                  >
+                    <View
+                      style={[styles.pickerDot, { backgroundColor: color }]}
+                    />
+                    <View style={styles.pickerInfo}>
+                      <Text
+                        style={[styles.pickerLabel, isSelected && { color }]}
+                      >
+                        {level === "Alle" ? t("allLabel") : level}
+                      </Text>
+                      <Text style={styles.pickerCount}>
+                        {total} {t("words")}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <MaterialCommunityIcons
+                        name="check-circle"
+                        size={22}
+                        color={color}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </Modal>
 
-              <Text style={styles.modalTitle}>Liste abgeschlossen!</Text>
-
-              <Text style={styles.modalSubtitle}>
-                Du hast alle {quizData.length} Sätze durchgearbeitet! 🎉
+        {/* Completion Modal */}
+        <Modal visible={showModal} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.completionCard}>
+              <MaterialCommunityIcons
+                name="check-decagram"
+                size={64}
+                color="#10b981"
+              />
+              <Text style={styles.completionTitle}>
+                Liste abgeschlossen! 🎉
               </Text>
-
-              <View style={styles.modalButtons}>
+              <Text style={styles.completionSubtitle}>
+                {quizData.length} Wörter mit Sätzen geübt
+              </Text>
+              <View style={styles.completionButtons}>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.primaryButton]}
-                  onPress={handleNewQuiz}
+                  style={[styles.btn, styles.btnPrimary]}
+                  onPress={handleNewList}
                 >
                   <MaterialCommunityIcons
                     name="refresh"
                     size={20}
                     color="#fff"
                   />
-                  <Text style={styles.primaryButtonText}>Neue Liste</Text>
+                  <Text style={styles.btnPrimaryText}>{t("newQuiz")}</Text>
                 </TouchableOpacity>
-
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.secondaryButton]}
-                  onPress={handleModalClose}
+                  style={styles.btnText}
+                  onPress={() => router.back()}
                 >
-                  <MaterialCommunityIcons
-                    name="replay"
-                    size={20}
-                    color="#6366f1"
-                  />
-                  <Text style={styles.secondaryButtonText}>Wiederholen</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.textButton}
-                  onPress={handleMenu}
-                >
-                  <Text style={styles.textButtonText}>Zurück zum Menü</Text>
+                  <Text style={styles.btnTextLabel}>{t("backToMenu")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -479,235 +545,295 @@ const App = () => {
       </View>
     </SafeAreaView>
   );
-};
+}
 
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
+  safeArea: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
+    gap: 10,
   },
   iconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
   },
-  progressContainer: {
-    flex: 1,
-    marginHorizontal: 16,
-  },
+  progressContainer: { flex: 1 },
   progressText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: "#475569",
     textAlign: "center",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   progressBarBg: {
-    height: 8,
+    height: 7,
     backgroundColor: "#e2e8f0",
     borderRadius: 4,
     overflow: "hidden",
   },
-  progressBarFill: {
-    height: "100%",
-    backgroundColor: "#6366f1",
-    borderRadius: 4,
-  },
-  quizContent: {
-    flex: 1,
-    justifyContent: "center",
+  progressBarFill: { height: "100%", borderRadius: 4 },
+  levelChip: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  imageContainer: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  image: {
-    width: 240,
-    height: 240,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 20,
+  },
+  levelChipText: { fontSize: 13, fontWeight: "700", color: "#fff" },
+
+  scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  contentArea: { gap: 14 },
+
+  imageContainer: { alignItems: "center" },
+  image: {
+    width: 180,
+    height: 180,
+    borderRadius: 16,
     backgroundColor: "#fff",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   speakHint: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    gap: 5,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     backgroundColor: "#eef2ff",
     borderRadius: 20,
   },
-  speakHintText: {
-    marginLeft: 6,
+  speakHintText: { fontSize: 12, color: "#6366f1", fontWeight: "500" },
+
+  wordHeader: { alignItems: "center", gap: 6 },
+  articleBadge: { paddingHorizontal: 14, paddingVertical: 3, borderRadius: 16 },
+  articleBadgeText: {
     fontSize: 13,
-    color: "#6366f1",
-    fontWeight: "500",
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 1,
   },
-  wordContainer: {
-    alignItems: "center",
+  wordText: { fontSize: 26, fontWeight: "700", color: "#1e293b" },
+  wordTranslation: { fontSize: 15, color: "#64748b", fontWeight: "500" },
+  levelTag: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
+  levelTagText: { fontSize: 11, fontWeight: "700" },
+
+  caseTabs: {
+    flexDirection: "row",
+    gap: 6,
+    flexWrap: "wrap",
+    justifyContent: "center",
+  },
+  caseTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
     backgroundColor: "#fff",
-    paddingHorizontal: 32,
-    paddingVertical: 24,
+  },
+  caseTabText: { fontSize: 12, fontWeight: "600", color: "#64748b" },
+  caseTabTextActive: { color: "#fff" },
+
+  sentenceCard: {
+    backgroundColor: "#fff",
     borderRadius: 16,
+    padding: 18,
+    borderLeftWidth: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 6,
     elevation: 2,
-    maxWidth: "90%",
+    gap: 8,
   },
-  word: {
-    fontSize: 24,
-    fontWeight: "700",
+  sentenceHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  caseLabelBig: { fontSize: 14, fontWeight: "700" },
+  sentenceText: {
+    fontSize: 18,
+    fontWeight: "600",
     color: "#1e293b",
+    lineHeight: 26,
+  },
+  speakSentenceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "#eef2ff",
+    borderRadius: 20,
+    marginTop: 4,
+  },
+  speakSentenceBtnText: { fontSize: 12, color: "#6366f1", fontWeight: "600" },
+
+  noSentenceCard: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    gap: 8,
+  },
+  noSentenceText: { fontSize: 14, color: "#94a3b8" },
+
+  overviewCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    gap: 2,
+  },
+  overviewTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#94a3b8",
     marginBottom: 8,
-    textAlign: "center",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  englword: {
-    fontSize: 16,
-    color: "#64748b",
-    fontWeight: "500",
-    textAlign: "center",
+  overviewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    gap: 10,
   },
+  overviewDot: { width: 10, height: 10, borderRadius: 5 },
+  overviewContent: { flex: 1, gap: 2 },
+  overviewLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  overviewSentence: { fontSize: 14, color: "#334155", lineHeight: 20 },
+
   buttonRow: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  navButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  homeButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#eef2ff",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#c7d2fe",
-  },
-  bannerWrapper: {
-    alignItems: "center",
-    paddingTop: 6,
-    paddingBottom: 40,
+    paddingVertical: 10,
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
   },
-  modalOverlay: {
-    flex: 1,
+  navButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    paddingHorizontal: 20,
-  },
-  modalCard: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 32,
-    width: "100%",
-    maxWidth: 400,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.25,
-    shadowRadius: 25,
-    elevation: 15,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  modalIconContainer: {
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#1e293b",
-    textAlign: "center",
-    marginBottom: 12,
-  },
-  modalSubtitle: {
-    fontSize: 16,
-    textAlign: "center",
-    color: "#475569",
-    marginBottom: 24,
-    fontWeight: "500",
-  },
-  modalButtons: {
-    width: "100%",
-    gap: 12,
-  },
-  modalButton: {
-    flexDirection: "row",
+  disabledButton: { opacity: 0.4 },
+  homeButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#eef2ff",
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  primaryButton: {
-    backgroundColor: "#6366f1",
-  },
-  primaryButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  secondaryButton: {
-    backgroundColor: "#eef2ff",
     borderWidth: 2,
     borderColor: "#c7d2fe",
   },
-  secondaryButtonText: {
-    color: "#6366f1",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  textButton: {
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  textButtonText: {
-    color: "#64748b",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-});
 
-export default App;
+  bannerWrapper: {
+    alignItems: "center",
+    paddingTop: 4,
+    paddingBottom: 16,
+    backgroundColor: "#fff",
+  },
+
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  pickerSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  pickerTitle: { fontSize: 18, fontWeight: "700", color: "#1e293b" },
+  pickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+    gap: 14,
+  },
+  pickerDot: { width: 12, height: 12, borderRadius: 6 },
+  pickerInfo: { flex: 1 },
+  pickerLabel: { fontSize: 16, fontWeight: "600", color: "#1e293b" },
+  pickerCount: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
+
+  completionCard: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 32,
+    alignItems: "center",
+    gap: 8,
+  },
+  completionTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1e293b",
+    marginTop: 8,
+  },
+  completionSubtitle: { fontSize: 14, color: "#64748b", marginBottom: 8 },
+  completionButtons: { width: "100%", gap: 10, marginTop: 8 },
+  btn: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  btnPrimary: { backgroundColor: "#6366f1" },
+  btnPrimaryText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  btnText: { paddingVertical: 10, alignItems: "center" },
+  btnTextLabel: { color: "#64748b", fontSize: 14, fontWeight: "600" },
+});
