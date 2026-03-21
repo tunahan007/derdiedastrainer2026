@@ -47,10 +47,12 @@ const shuffleArray = (arr) => {
 };
 
 const buildList = (level) => {
-  const base = quizMainData.filter((w) => SENTENCES[w?.q]);
+  if (!quizMainData || !SENTENCES) return [];
+  const base = quizMainData.filter((w) => w && w.q && SENTENCES[w.q]);
   const filtered =
-    !level || level === "Alle" ? base : base.filter((w) => w.l === level);
-  return shuffleArray(filtered.length >= 5 ? filtered : base);
+    !level || level === "Alle" ? base : base.filter((w) => w && w.l === level);
+  const pool = filtered.length >= 5 ? filtered : base;
+  return pool.length > 0 ? shuffleArray(pool) : [];
 };
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -154,7 +156,7 @@ export default function SentencesScreen() {
 
   useEffect(() => {
     try {
-      speakSentence("nom");
+      speakSentence("n");
     } catch (e) {}
     buttonAnim.setValue(0);
     Animated.spring(buttonAnim, {
@@ -258,13 +260,15 @@ export default function SentencesScreen() {
               style={styles.imageContainer}
             >
               {current?.img ? (
-                <Image source={current.image} style={styles.image} />
+                <Image source={current.img} style={styles.image} />
               ) : (
                 <WordIcon word={current} size={180} />
               )}
               <View style={styles.speakHint}>
                 <FontAwesome name="volume-up" size={13} color="#6366f1" />
-                <Text style={styles.speakHintText}>{t("tapToHear")}</Text>
+                <Text style={styles.speakHintText}>
+                  {t("tapToHear") || "Tap to hear"}
+                </Text>
               </View>
             </TouchableOpacity>
 
@@ -287,7 +291,7 @@ export default function SentencesScreen() {
                   ]}
                 >
                   <Text style={[styles.levelTagText, { color: levelColor }]}>
-                    {current.level}
+                    {current.l}
                   </Text>
                 </View>
               )}
@@ -467,7 +471,11 @@ export default function SentencesScreen() {
                 const isSelected = selectedLevel === level;
                 const color = LEVEL_COLORS[level];
                 const total = quizMainData.filter(
-                  (w) => SENTENCES[w?.q] && (level === "Alle" || w.l === level),
+                  (w) =>
+                    w &&
+                    w.q &&
+                    SENTENCES[w.q] &&
+                    (level === "Alle" || w.l === level),
                 ).length;
                 return (
                   <TouchableOpacity

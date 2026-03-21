@@ -14,6 +14,8 @@ import { Dimensions } from "react-native";
 import ABanner from "./banner";
 import { useRouter } from "expo-router";
 import { quizMainData } from "./words";
+import { TRANSLATIONS } from "./translations";
+import { SENTENCES } from "./sentences_data";
 import { useTranslation } from "react-i18next";
 
 const db = openDatabaseSync("appdata.db");
@@ -26,13 +28,17 @@ const RANKS = [
   { minPerfect: 5, name: "Master", color: "#10b981", emoji: "🎓⭐⭐" },
   { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "🧪👨‍🔬" },
   { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "🦉👑" },
+  { minPerfect: 35, name: "Dean", color: "#ec4899", emoji: "🏛️👑" },
+  { minPerfect: 50, name: "Rector", color: "#8b5cf6", emoji: "🎖️🦉" },
+  { minPerfect: 75, name: "Academy Fellow", color: "#f97316", emoji: "🌟🎓" },
+  { minPerfect: 100, name: "Grandmaster", color: "#6366f1", emoji: "💎👑" },
 ];
 
 const TOTAL_WORDS = quizMainData.length;
 
 // Count words per level from words.js
 const WORDS_PER_LEVEL = quizMainData.reduce((acc, w) => {
-  const lvl = w.level || "A1";
+  const lvl = w.level || w.l || "A1";
   acc[lvl] = (acc[lvl] || 0) + 1;
   return acc;
 }, {});
@@ -200,7 +206,7 @@ const Statistics = () => {
       // By level
       const byLevel = {};
       for (const w of allProgress) {
-        const lvl = w.level || "A1";
+        const lvl = w.level || w.l || "A1";
         if (!byLevel[lvl]) byLevel[lvl] = { seen: 0, mastered: 0 };
         byLevel[lvl].seen++;
         if (w.seenCount >= 3 && w.correctCount / w.seenCount >= 0.7) {
@@ -481,11 +487,14 @@ const Statistics = () => {
                     style={[
                       styles.levelTag,
                       {
-                        backgroundColor: LEVEL_COLORS[item.level] || "#6366f1",
+                        backgroundColor:
+                          LEVEL_COLORS[item.l || item.level] || "#6366f1",
                       },
                     ]}
                   >
-                    <Text style={styles.levelTagText}>{item.level}</Text>
+                    <Text style={styles.levelTagText}>
+                      {item.l || item.level}
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.weakWordRight}>
@@ -802,51 +811,76 @@ const Statistics = () => {
 
         <View style={styles.achievementProgressCard}>
           <Text style={styles.achievementProgressTitle}>{t("nextGoals")}</Text>
-          <View style={styles.progressItem}>
-            <Text style={styles.progressItemLabel}>
-              {t("perfectScoresGoal", { n: achievements?.perfectScores || 0 })}
-            </Text>
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    width: `${((achievements?.perfectScores || 0) / 10) * 100}%`,
-                  },
-                ]}
-              />
+          {/* Dynamic Goals — next milestone based on current progress */}
+          {[
+            {
+              label: t("perfectScores"),
+              value: achievements?.perfectScores || 0,
+              target:
+                [1, 3, 5, 10, 20, 35, 50, 75, 100].find(
+                  (n) => n > (achievements?.perfectScores || 0),
+                ) || 100,
+              color: "#6366f1",
+            },
+            {
+              label: t("quizzes"),
+              value: achievements?.totalQuizzes || 0,
+              target:
+                [10, 25, 50, 100, 200, 500].find(
+                  (n) => n > (achievements?.totalQuizzes || 0),
+                ) || 500,
+              color: "#10b981",
+            },
+            {
+              label: t("correctAnswers"),
+              value: achievements?.totalCorrect || 0,
+              target:
+                [50, 100, 250, 500, 1000, 2500, 5000].find(
+                  (n) => n > (achievements?.totalCorrect || 0),
+                ) || 5000,
+              color: "#f59e0b",
+            },
+            {
+              label: t("wordsDiscoveredGoal"),
+              value: wordProgress.totalSeen,
+              target:
+                [50, 100, 200, 350, 528].find(
+                  (n) => n > wordProgress.totalSeen,
+                ) || 528,
+              color: "#3b82f6",
+            },
+            {
+              label: t("wordsMastered"),
+              value: wordProgress.totalMastered,
+              target:
+                [20, 50, 100, 200, 400, 528].find(
+                  (n) => n > wordProgress.totalMastered,
+                ) || 528,
+              color: "#8b5cf6",
+            },
+          ].map((goal, idx) => (
+            <View key={idx} style={styles.progressItem}>
+              <View style={styles.progressItemHeader}>
+                <Text style={styles.progressItemLabel}>
+                  {goal.label}: {goal.value} / {goal.target}
+                </Text>
+                <Text style={[styles.progressItemPct, { color: goal.color }]}>
+                  {Math.min(Math.round((goal.value / goal.target) * 100), 100)}%
+                </Text>
+              </View>
+              <View style={styles.progressBar}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      width: `${Math.min((goal.value / goal.target) * 100, 100)}%`,
+                      backgroundColor: goal.color,
+                    },
+                  ]}
+                />
+              </View>
             </View>
-          </View>
-          <View style={styles.progressItem}>
-            <Text style={styles.progressItemLabel}>
-              {t("quizzesGoal", { n: achievements?.totalQuizzes || 0 })}
-            </Text>
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    width: `${((achievements?.totalQuizzes || 0) / 50) * 100}%`,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-          <View style={styles.progressItem}>
-            <Text style={styles.progressItemLabel}>
-              {t("correctAnswersGoal", { n: achievements?.totalCorrect || 0 })}
-            </Text>
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    width: `${((achievements?.totalCorrect || 0) / 500) * 100}%`,
-                  },
-                ]}
-              />
-            </View>
-          </View>
+          ))}
           <View style={styles.progressItem}>
             <Text style={styles.progressItemLabel}>
               {t("wordsDiscoveredGoal")}: {wordProgress.totalSeen} /{" "}
@@ -1178,7 +1212,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#6366f1",
     paddingVertical: 12,
     borderRadius: 12,
-    marginBottom: 4,
+    marginTop: 16,
+    marginBottom: 40,
   },
   practiceButtonText: { color: "#fff", fontSize: 15, fontWeight: "600" },
 
@@ -1289,6 +1324,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   progressItem: { marginBottom: 16 },
+  progressItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  progressItemPct: { fontSize: 12, fontWeight: "700" },
   progressItemLabel: {
     fontSize: 14,
     color: "#64748b",

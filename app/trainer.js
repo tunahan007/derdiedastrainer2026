@@ -44,7 +44,7 @@ const App = () => {
   const [isWrong, setIsWrong] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isButtonDisabled, setButtonDisabled] = useState(false);
-  const [isSoundOn, setSoundOn] = useState(false);
+  const [isSoundOn, setSoundOn] = useState(true);
   const [isProcessingClick, setIsProcessingClick] = useState(false);
   const [failureData, setFailureData] = useState([]);
   const [correctData, setCorrectData] = useState([]);
@@ -61,9 +61,10 @@ const App = () => {
 
   const router = useRouter();
   const params = useLocalSearchParams();
-  const levelParam = params?.l || "Alle"; // "Alle" | "A1" | "A2" | "B1"
+  const levelParam = params?.level || "Alle"; // "Alle" | "A1" | "A2" | "B1"
 
   const buildQuiz = (lvl) => {
+    console.log("🎯 buildQuiz called with level:", lvl);
     const filtered =
       !lvl || lvl === "Alle"
         ? quizMainData

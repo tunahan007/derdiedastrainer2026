@@ -258,7 +258,9 @@ const App = () => {
             )}
             <View style={styles.speakHint}>
               <FontAwesome name="volume-up" size={14} color="#6366f1" />
-              <Text style={styles.speakHintText}>{t("tapToHear")}</Text>
+              <Text style={styles.speakHintText}>
+                {t("tapToHear") || "Tap to hear"}
+              </Text>
             </View>
             {SENTENCES[current?.q] && (
               <View style={styles.sentenceHint}>
@@ -299,7 +301,7 @@ const App = () => {
                   ]}
                 >
                   <Text style={[styles.tagText, { color: levelColor }]}>
-                    {current.level}
+                    {current.l}
                   </Text>
                 </View>
               )}

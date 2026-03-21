@@ -21,6 +21,10 @@ import { useTranslation } from "react-i18next";
 import LanguageSelector from "./LanguageSelector";
 
 const db = openDatabaseSync("appdata.db");
+// WAL mode: prevents "database is locked" errors with concurrent operations
+try {
+  db.execSync("PRAGMA journal_mode=WAL;");
+} catch (e) {}
 
 const RANKS = [
   { minPerfect: 0, name: "Student", color: "#94a3b8", emoji: "📚" },
@@ -29,6 +33,10 @@ const RANKS = [
   { minPerfect: 5, name: "Master", color: "#10b981", emoji: "🎓⭐⭐" },
   { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "🧪👨‍🔬" },
   { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "🦉👑" },
+  { minPerfect: 35, name: "Dean", color: "#ec4899", emoji: "🏛️👑" },
+  { minPerfect: 50, name: "Rector", color: "#8b5cf6", emoji: "🎖️🦉" },
+  { minPerfect: 75, name: "Academy Fellow", color: "#f97316", emoji: "🌟🎓" },
+  { minPerfect: 100, name: "Grandmaster", color: "#6366f1", emoji: "💎👑" },
 ];
 
 const ACHIEVEMENTS = [
@@ -74,7 +82,7 @@ const LEVEL_COLORS = {
 // Count words per level from words.js at startup
 const WORD_COUNTS = quizMainData.reduce(
   (acc, w) => {
-    const lvl = w.level || "A1";
+    const lvl = w.l || "A1";
     acc[lvl] = (acc[lvl] || 0) + 1;
     acc["Alle"] = (acc["Alle"] || 0) + 1;
     return acc;
@@ -107,8 +115,12 @@ export default function Page() {
   const [selectedLevel, setSelectedLevel] = useState("Alle");
 
   useEffect(() => {
-    loadUserStats();
-    loadSavedLevel();
+    // Run sequentially to avoid DB lock
+    const initDB = async () => {
+      await loadUserStats();
+      await loadSavedLevel();
+    };
+    initDB();
 
     Animated.loop(
       Animated.sequence([
@@ -235,15 +247,28 @@ export default function Page() {
   };
 
   const completeTutorial = async () => {
-    try {
-      await db.execAsync(
-        `UPDATE achievements SET tutorialCompleted = 1 WHERE userId='default'`,
-      );
-      setShowTutorial(false);
-      setTutorialStep(0);
-    } catch (err) {
-      console.error("completeTutorial error:", err);
-    }
+    setShowTutorial(false);
+    setTutorialStep(0);
+    // Small delay to let any pending DB ops finish before writing
+    setTimeout(async () => {
+      try {
+        await db.runAsync(
+          `UPDATE achievements SET tutorialCompleted = 1 WHERE userId='default'`,
+        );
+      } catch (err) {
+        console.error("completeTutorial error:", err);
+        // Retry once after short delay
+        setTimeout(async () => {
+          try {
+            await db.runAsync(
+              `UPDATE achievements SET tutorialCompleted = 1 WHERE userId='default'`,
+            );
+          } catch (e) {
+            console.error("completeTutorial retry failed:", e);
+          }
+        }, 1000);
+      }
+    }, 300);
   };
 
   const calculateRank = (perfectScores) => {

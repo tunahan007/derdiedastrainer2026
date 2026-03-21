@@ -38,7 +38,7 @@ const en = {
     "Get 20/20 in a quiz to earn a Perfect Score! These unlock ranks and achievements.",
   tutorialRankTitle: "Rank System 🏆",
   tutorialRankDesc:
-    "Start as Student, progress through Scholar, Bachelor, Master, Doctor, and finally Professor!\n\n• Scholar: 1 star\n• Bachelor: 3 stars\n• Master: 5 stars\n• Doctor: 10 stars\n• Professor: 20 stars",
+    "Start as Student and climb all the way to Grandmaster!\n\n📚 Student: 0\n🎓 Scholar: 1\n🎓⭐ Bachelor: 3\n🎓⭐⭐ Master: 5\n🧪 Doctor: 10\n🦉 Professor: 20\n🏛️ Dean: 35\n🎖️ Rector: 50\n🌟 Academy Fellow: 75\n💎 Grandmaster: 100",
   tutorialStreakTitle: "Daily Streaks 🔥",
   tutorialStreakDesc:
     "Play every day to build your streak! Your longest streak is saved forever.",
@@ -159,7 +159,7 @@ const de = {
     "Erreiche 20/20 in einem Quiz um einen perfekten Score zu erhalten! Das schaltet Ränge und Erfolge frei.",
   tutorialRankTitle: "Rang-System 🏆",
   tutorialRankDesc:
-    "Starte als Student, steige auf zu Scholar, Bachelor, Master, Doctor und schließlich Professor!\n\n• Scholar: 1 Stern\n• Bachelor: 3 Sterne\n• Master: 5 Sterne\n• Doctor: 10 Sterne\n• Professor: 20 Sterne",
+    "Starte als Student und klettere bis zum Grandmaster!\n\n📚 Student: 0\n🎓 Scholar: 1\n🎓⭐ Bachelor: 3\n🎓⭐⭐ Master: 5\n🧪 Doctor: 10\n🦉 Professor: 20\n🏛️ Dean: 35\n🎖️ Rector: 50\n🌟 Academy Fellow: 75\n💎 Grandmaster: 100",
   tutorialStreakTitle: "Tägliche Streaks 🔥",
   tutorialStreakDesc:
     "Spiele jeden Tag, um deinen Streak aufzubauen! Dein längster Streak wird für immer gespeichert.",
@@ -280,7 +280,7 @@ const ru = {
     "Получите 20/20 в тесте для идеального результата! Это открывает ранги и достижения.",
   tutorialRankTitle: "Система рангов 🏆",
   tutorialRankDesc:
-    "Начните как Student, прогрессируйте через Scholar, Bachelor, Master, Doctor и наконец Professor!\n\n• Scholar: 1 звезда\n• Bachelor: 3 звезды\n• Master: 5 звезд\n• Doctor: 10 звезд\n• Professor: 20 звезд",
+    "Начните как Student и дойдите до Grandmaster!\n\n📚 Student: 0\n🎓 Scholar: 1\n🎓⭐ Bachelor: 3\n🎓⭐⭐ Master: 5\n🧪 Doctor: 10\n🦉 Professor: 20\n🏛️ Dean: 35\n🎖️ Rector: 50\n🌟 Academy Fellow: 75\n💎 Grandmaster: 100",
   tutorialStreakTitle: "Ежедневные серии 🔥",
   tutorialStreakDesc:
     "Играйте каждый день, чтобы строить серию! Ваша самая длинная серия сохраняется навсегда.",
@@ -401,7 +401,7 @@ const tr = {
     "Mükemmel Skor kazanmak için bir sınavda 20/20 alın! Bu, rütbeleri ve başarıları açar.",
   tutorialRankTitle: "Rütbe Sistemi 🏆",
   tutorialRankDesc:
-    "Student olarak başlayın, Scholar, Bachelor, Master, Doctor ve son olarak Professor olarak ilerleyin!\n\n• Scholar: 1 yıldız\n• Bachelor: 3 yıldız\n• Master: 5 yıldız\n• Doctor: 10 yıldız\n• Professor: 20 yıldız",
+    "Student olarak başlayın ve Grandmaster'a kadar yükselın!\n\n📚 Student: 0\n🎓 Scholar: 1\n🎓⭐ Bachelor: 3\n🎓⭐⭐ Master: 5\n🧪 Doctor: 10\n🦉 Professor: 20\n🏛️ Dean: 35\n🎖️ Rector: 50\n🌟 Academy Fellow: 75\n💎 Grandmaster: 100",
   tutorialStreakTitle: "Günlük Seriler 🔥",
   tutorialStreakDesc:
     "Seriyi oluşturmak için her gün oynayın! En uzun seriniz sonsuza kadar kaydedilir.",
@@ -522,7 +522,7 @@ const ar = {
     "احصل على 20/20 في الاختبار للحصول على نتيجة مثالية! هذا يفتح الرتب والإنجازات.",
   tutorialRankTitle: "نظام الرتب 🏆",
   tutorialRankDesc:
-    "ابدأ كـ Student، وتقدم عبر Scholar وBachelor وMaster وDoctor وأخيراً Professor!\n\n• Scholar: نجمة واحدة\n• Bachelor: 3 نجوم\n• Master: 5 نجوم\n• Doctor: 10 نجوم\n• Professor: 20 نجمة",
+    "ابدأ كـ Student وتسلق حتى Grandmaster!\n\n📚 Student: 0\n🎓 Scholar: 1\n🎓⭐ Bachelor: 3\n🎓⭐⭐ Master: 5\n🧪 Doctor: 10\n🦉 Professor: 20\n🏛️ Dean: 35\n🎖️ Rector: 50\n🌟 Academy Fellow: 75\n💎 Grandmaster: 100",
   tutorialStreakTitle: "السلاسل اليومية 🔥",
   tutorialStreakDesc:
     "العب كل يوم لبناء سلسلتك! يتم حفظ أطول سلسلة لك إلى الأبد.",
@@ -642,7 +642,7 @@ const fr = {
     "Obtenez 20/20 dans un quiz pour un score parfait! Cela débloque des rangs et succès.",
   tutorialRankTitle: "Système de rangs 🏆",
   tutorialRankDesc:
-    "Commencez comme Student, progressez à travers Scholar, Bachelor, Master, Doctor et enfin Professor!\n\n• Scholar: 1 étoile\n• Bachelor: 3 étoiles\n• Master: 5 étoiles\n• Doctor: 10 étoiles\n• Professor: 20 étoiles",
+    "Commencez comme Student et grimpez jusqu'à Grandmaster!\n\n📚 Student: 0\n🎓 Scholar: 1\n🎓⭐ Bachelor: 3\n🎓⭐⭐ Master: 5\n🧪 Doctor: 10\n🦉 Professor: 20\n🏛️ Dean: 35\n🎖️ Rector: 50\n🌟 Academy Fellow: 75\n💎 Grandmaster: 100",
   tutorialStreakTitle: "Séries quotidiennes 🔥",
   tutorialStreakDesc:
     "Jouez chaque jour pour construire votre série! Votre plus longue série est sauvegardée pour toujours.",
@@ -765,7 +765,7 @@ const es = {
     "¡Consigue 20/20 en un cuestionario para obtener una Puntuación Perfecta! Esto desbloquea rangos y logros.",
   tutorialRankTitle: "Sistema de rangos 🏆",
   tutorialRankDesc:
-    "¡Empieza como Student, progresa por Scholar, Bachelor, Master, Doctor y finalmente Professor!\n\n• Scholar: 1 estrella\n• Bachelor: 3 estrellas\n• Master: 5 estrellas\n• Doctor: 10 estrellas\n• Professor: 20 estrellas",
+    "¡Empieza como Student y sube hasta Grandmaster!\n\n📚 Student: 0\n🎓 Scholar: 1\n🎓⭐ Bachelor: 3\n🎓⭐⭐ Master: 5\n🧪 Doctor: 10\n🦉 Professor: 20\n🏛️ Dean: 35\n🎖️ Rector: 50\n🌟 Academy Fellow: 75\n💎 Grandmaster: 100",
   tutorialStreakTitle: "Rachas diarias 🔥",
   tutorialStreakDesc:
     "¡Juega cada día para construir tu racha! Tu racha más larga se guarda para siempre.",
@@ -888,7 +888,7 @@ const uk = {
     "Отримайте 20/20 у тесті для ідеального результату! Це відкриває ранги та досягнення.",
   tutorialRankTitle: "Система рангів 🏆",
   tutorialRankDesc:
-    "Почніть як Student, прогресуйте через Scholar, Bachelor, Master, Doctor і нарешті Professor!\n\n• Scholar: 1 зірка\n• Bachelor: 3 зірки\n• Master: 5 зірок\n• Doctor: 10 зірок\n• Professor: 20 зірок",
+    "Почніть як Student і піднімайтеся до Grandmaster!\n\n📚 Student: 0\n🎓 Scholar: 1\n🎓⭐ Bachelor: 3\n🎓⭐⭐ Master: 5\n🧪 Doctor: 10\n🦉 Professor: 20\n🏛️ Dean: 35\n🎖️ Rector: 50\n🌟 Academy Fellow: 75\n💎 Grandmaster: 100",
   tutorialStreakTitle: "Щоденні серії 🔥",
   tutorialStreakDesc:
     "Грайте кожен день, щоб будувати серію! Ваша найдовша серія зберігається назавжди.",

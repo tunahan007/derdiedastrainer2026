@@ -16,6 +16,7 @@ import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { quizMainData } from "./words";
+import WordIcon from "./WordIcon";
 import ABanner from "./banner";
 import { openDatabaseSync } from "expo-sqlite";
 
@@ -39,26 +40,20 @@ const PracticeFailedWords = () => {
   const [failureData, setFailureData] = useState([]);
   const [correctData, setCorrectData] = useState([]);
   const [fadeAnim] = useState(new Animated.Value(1));
-
   const [quizData, setQuizData] = useState([]);
   const [lastQuizData, setLastQuizData] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const router = useRouter();
 
   useEffect(() => {
-    initializeApp();
+    loadFailedWords();
   }, []);
-
-  const initializeApp = async () => {
-    await loadFailedWords();
-  };
 
   const loadFailedWords = async () => {
     try {
-      // Get all failed words from database
       const words = await db.getAllAsync(
-        `SELECT * FROM failed_words 
-         ORDER BY failCount DESC, lastFailed DESC`,
+        `SELECT * FROM failed_words ORDER BY failCount DESC, lastFailed DESC`,
       );
 
       if (!words || words.length === 0) {
@@ -70,23 +65,24 @@ const PracticeFailedWords = () => {
         return;
       }
 
-      // Convert failed words to quiz format
+      // ── FIX: use w.q instead of w.question ───────────────────────────────
       const failedQuiz = words.map((item) => {
-        // Find the original word data to get the image
         const originalWord = quizMainData.find(
-          (w) => w.question.toLowerCase() === item.word.toLowerCase(),
+          (w) => w.q && w.q.toLowerCase() === item.word.toLowerCase(),
         );
 
         return {
-          question: item.word,
-          correctAnswer: item.correctArticle,
-          image: originalWord?.image,
-          englishName: originalWord?.englishName || "",
+          q: item.word,
+          a: item.correctArticle,
+          img: originalWord?.img || null,
+          emoji: originalWord?.emoji || "📝",
+          en: originalWord?.en || "",
+          l: originalWord?.l || "",
+          c: originalWord?.c || "",
           failCount: item.failCount,
         };
       });
 
-      // Take up to 20 most failed words
       const quiz = failedQuiz.slice(0, 20);
       setQuizData(quiz);
       setLastQuizData(quiz);
@@ -98,125 +94,94 @@ const PracticeFailedWords = () => {
     }
   };
 
+  // ── Speech ────────────────────────────────────────────────────────────────
   const speakWord = () => {
     Speech.stop();
-    const greeting = quizData[currentQuestionIndex]?.question;
-    const options = { language: "de" };
-    if (isSoundOn && currentQuestionIndex < quizData.length) {
+    const word = quizData[currentQuestionIndex]?.q;
+    if (isSoundOn && word) {
       try {
-        Speech.speak(greeting, options);
-      } catch (error) {
-        console.error("Speech.speak : " + error);
+        Speech.speak(word, { language: "de" });
+      } catch (e) {
+        console.error("Speech:", e);
       }
     }
   };
 
   const toggleSound = () => setSoundOn(!isSoundOn);
 
-  const handleButtonClick = (handlerFunction) => {
-    return () => {
-      if (!isProcessingClick) {
-        setIsProcessingClick(true);
-        handlerFunction();
-        setTimeout(() => setIsProcessingClick(false), 1000);
-      }
-    };
+  const handleButtonClick = (fn) => () => {
+    if (!isProcessingClick) {
+      setIsProcessingClick(true);
+      fn();
+      setTimeout(() => setIsProcessingClick(false), 1000);
+    }
   };
 
+  // ── DB ────────────────────────────────────────────────────────────────────
   const saveFailedWord = async (word, correctArticle, wrongArticle) => {
     try {
       await db.runAsync(
-        `UPDATE failed_words 
-         SET failCount = failCount + 1, 
-             wrongArticle = ?,
-             lastFailed = ?
+        `UPDATE failed_words SET failCount = failCount + 1, wrongArticle = ?, lastFailed = ?
          WHERE word = ? AND correctArticle = ?`,
         [wrongArticle, new Date().toISOString(), word, correctArticle],
       );
-    } catch (error) {
-      console.error("saveFailedWord error:", error);
+    } catch (e) {
+      console.error("saveFailedWord:", e);
     }
   };
 
   const removeFromFailedWords = async (word, correctArticle) => {
     try {
       const result = await db.getFirstAsync(
-        `SELECT failCount FROM failed_words 
-       WHERE word = ? AND correctArticle = ?`,
+        `SELECT failCount FROM failed_words WHERE word = ? AND correctArticle = ?`,
         [word, correctArticle],
       );
-
       if (!result) return;
-
       if (result.failCount > 1) {
         await db.runAsync(
-          `UPDATE failed_words 
-         SET failCount = failCount - 1
-         WHERE word = ? AND correctArticle = ?`,
+          `UPDATE failed_words SET failCount = failCount - 1 WHERE word = ? AND correctArticle = ?`,
           [word, correctArticle],
         );
       } else {
-        // Mark as solved but don't delete yet
         await db.runAsync(
-          `UPDATE failed_words 
-         SET failCount = 0
-         WHERE word = ? AND correctArticle = ?`,
+          `UPDATE failed_words SET failCount = 0 WHERE word = ? AND correctArticle = ?`,
           [word, correctArticle],
         );
       }
-    } catch (error) {
-      console.error("removeFromFailedWords error:", error);
+    } catch (e) {
+      console.error("removeFromFailedWords:", e);
     }
   };
 
+  // ── Answer ────────────────────────────────────────────────────────────────
   const handleAnswer = async (article) => {
-    const questionEndTime = Date.now();
-    const timeSpent = Math.round((questionEndTime - questionStartTime) / 1000);
-    const newQuestionTimes = [...questionTimes, timeSpent];
-    setQuestionTimes(newQuestionTimes);
-
+    const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
+    setQuestionTimes((prev) => [...prev, timeSpent]);
     setSelectedAnswer(article);
     setCount((prev) => prev + 1);
 
-    const currentQuestion = quizData[currentQuestionIndex];
-    let newFails = fails;
+    const current = quizData[currentQuestionIndex];
     let newScore = score;
+    let newFails = fails;
     let newStreak = currentStreak;
 
-    if (currentQuestion.correctAnswer === article) {
+    if (current.a === article) {
       newScore++;
       setScore(newScore);
       newStreak++;
       setCurrentStreak(newStreak);
-
-      if (newStreak > bestStreakInSession) {
-        setBestStreakInSession(newStreak);
-      }
-
-      // Decrease fail count for this word
-      await removeFromFailedWords(
-        currentQuestion.question,
-        currentQuestion.correctAnswer,
-      );
-
-      correctData.push(article + " " + currentQuestion.question);
+      if (newStreak > bestStreakInSession) setBestStreakInSession(newStreak);
+      await removeFromFailedWords(current.q, current.a);
+      correctData.push(`${article} ${current.q}`);
     } else {
       newFails++;
       setFails(newFails);
       setIsWrong(true);
-
       newStreak = 0;
       setCurrentStreak(0);
-
-      // Increase fail count again
-      await saveFailedWord(
-        currentQuestion.question,
-        currentQuestion.correctAnswer,
-        article,
-      );
-
+      await saveFailedWord(current.q, current.a, article);
       failureData.push(
-        `${article} ${currentQuestion.question} => ✔️ ${currentQuestion.correctAnswer} ${currentQuestion.question}`,
+        `${article} ${current.q} => ✔️ ${current.a} ${current.q}`,
       );
     }
 
@@ -235,7 +200,6 @@ const PracticeFailedWords = () => {
           useNativeDriver: true,
         }),
       ]).start();
-
       setTimeout(() => {
         setSelectedAnswer(null);
         setIsWrong(false);
@@ -288,41 +252,36 @@ const PracticeFailedWords = () => {
   };
 
   useEffect(() => {
-    const backAction = () => {
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
       if (showModal) {
         handleMenu();
         return true;
       }
       return false;
-    };
-
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      backAction,
-    );
-
-    return () => backHandler.remove();
+    });
+    return () => back.remove();
   }, [showModal]);
 
+  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading || quizData.length === 0) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
           <MaterialCommunityIcons name="loading" size={48} color="#6366f1" />
-          <Text style={styles.loadingText}>Loading your failed words...</Text>
+          <Text style={styles.loadingText}>Lade Fehlerwörter...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   const currentQuestion = quizData[currentQuestionIndex];
-  const progressPercentage =
-    ((currentQuestionIndex + 1) / quizData.length) * 100;
+  const progressPct = ((currentQuestionIndex + 1) / quizData.length) * 100;
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header with Premium Badge */}
+        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.iconButton} onPress={toggleSound}>
             <MaterialCommunityIcons
@@ -335,17 +294,14 @@ const PracticeFailedWords = () => {
           <View style={styles.progressContainer}>
             <View style={styles.titleContainer}>
               <MaterialCommunityIcons name="crown" size={16} color="#fbbf24" />
-              <Text style={styles.headerTitle}>Practice Failed Words</Text>
+              <Text style={styles.headerTitle}>Fehlerwörter üben</Text>
             </View>
             <Text style={styles.progressText}>
               {currentQuestionIndex + 1} / {quizData.length}
             </Text>
             <View style={styles.progressBarBg}>
               <View
-                style={[
-                  styles.progressBarFill,
-                  { width: `${progressPercentage}%` },
-                ]}
+                style={[styles.progressBarFill, { width: `${progressPct}%` }]}
               />
             </View>
           </View>
@@ -358,43 +314,54 @@ const PracticeFailedWords = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Fail Count Badge */}
+        {/* Fail badge */}
         {currentQuestion?.failCount > 1 && (
           <View style={styles.failBadge}>
             <MaterialCommunityIcons name="alert" size={16} color="#ef4444" />
             <Text style={styles.failBadgeText}>
-              Failed {currentQuestion.failCount}x — before
+              {currentQuestion.failCount}x falsch beantwortet
             </Text>
           </View>
         )}
 
+        {/* Quiz Content */}
         <Animated.View style={[styles.quizContent, { opacity: fadeAnim }]}>
-          {currentQuestion?.image && (
-            <View style={styles.imageContainer}>
+          <TouchableOpacity
+            onPress={speakWord}
+            activeOpacity={0.85}
+            style={styles.imageContainer}
+          >
+            {currentQuestion?.img ? (
               <Image
-                source={currentQuestion.image}
+                source={currentQuestion.img}
                 style={styles.image}
                 resizeMode="cover"
               />
-              <TouchableOpacity style={styles.speakHint} onPress={speakWord}>
-                <MaterialCommunityIcons
-                  name="volume-high"
-                  size={16}
-                  color="#6366f1"
-                />
-                <Text style={styles.speakHintText}>
-                  Tap to hear pronunciation
-                </Text>
-              </TouchableOpacity>
+            ) : (
+              <WordIcon word={currentQuestion} size={240} />
+            )}
+            <View style={styles.speakHint}>
+              <MaterialCommunityIcons
+                name="volume-high"
+                size={16}
+                color="#6366f1"
+              />
+              <Text style={styles.speakHintText}>Tippen zum Hören</Text>
             </View>
-          )}
+          </TouchableOpacity>
 
           <View style={styles.wordContainer}>
-            <Text style={styles.word}>{currentQuestion?.question}</Text>
-            <Text style={styles.englword}>{currentQuestion?.englishName}</Text>
+            <Text style={styles.word}>{currentQuestion?.q}</Text>
+            <Text style={styles.englword}>{currentQuestion?.en}</Text>
+            {currentQuestion?.l ? (
+              <View style={styles.levelBadge}>
+                <Text style={styles.levelBadgeText}>{currentQuestion.l}</Text>
+              </View>
+            ) : null}
           </View>
         </Animated.View>
 
+        {/* Answer Buttons */}
         <View style={styles.buttonContainer}>
           {["der", "die", "das"].map((article) => (
             <TouchableOpacity
@@ -402,10 +369,10 @@ const PracticeFailedWords = () => {
               style={[
                 styles.answerButton,
                 selectedAnswer === article &&
-                  currentQuestion.correctAnswer === article &&
+                  currentQuestion.a === article &&
                   styles.selectedButton,
                 selectedAnswer === article &&
-                  currentQuestion.correctAnswer !== article &&
+                  currentQuestion.a !== article &&
                   styles.wrongButton,
               ]}
               onPress={handleButtonClick(() => handleAnswer(article))}
@@ -430,7 +397,7 @@ const PracticeFailedWords = () => {
         {/* Results Modal */}
         <Modal
           visible={showModal}
-          transparent={true}
+          transparent
           animationType="fade"
           onRequestClose={handleMenu}
         >
@@ -441,32 +408,31 @@ const PracticeFailedWords = () => {
                 contentContainerStyle={styles.modalScrollContent}
                 showsVerticalScrollIndicator={false}
               >
-                <View style={styles.modalIconContainer}>
-                  <MaterialCommunityIcons
-                    name={
-                      score === quizData.length
-                        ? "trophy-award"
-                        : score >= quizData.length * 0.7
-                          ? "emoticon-happy"
-                          : "school"
-                    }
-                    size={64}
-                    color={
-                      score === quizData.length
-                        ? "#fbbf24"
-                        : score >= quizData.length * 0.7
-                          ? "#10b981"
-                          : "#6366f1"
-                    }
-                  />
-                </View>
+                <MaterialCommunityIcons
+                  name={
+                    score === quizData.length
+                      ? "trophy-award"
+                      : score >= quizData.length * 0.7
+                        ? "emoticon-happy"
+                        : "school"
+                  }
+                  size={64}
+                  color={
+                    score === quizData.length
+                      ? "#fbbf24"
+                      : score >= quizData.length * 0.7
+                        ? "#10b981"
+                        : "#6366f1"
+                  }
+                  style={{ marginBottom: 16 }}
+                />
 
                 <Text style={styles.modalTitle}>
                   {score === quizData.length
-                    ? "Perfect! 🎉"
+                    ? "Perfekt! 🎉"
                     : score >= quizData.length * 0.7
-                      ? "Great Progress! 👍"
-                      : "Keep Practicing! 💪"}
+                      ? "Guter Fortschritt! 👍"
+                      : "Weiter üben! 💪"}
                 </Text>
 
                 <View style={styles.scoreCard}>
@@ -475,29 +441,37 @@ const PracticeFailedWords = () => {
                   <Text style={styles.modalScoreTotal}>{quizData.length}</Text>
                 </View>
 
-                <Text style={styles.modalSubtitle}>
-                  {score === quizData.length
-                    ? "You've mastered these challenging words!"
-                    : `${((score / quizData.length) * 100).toFixed(0)}% correct - You're improving!`}
-                </Text>
+                {bestStreakInSession > 2 && (
+                  <View style={styles.streakRow}>
+                    <MaterialCommunityIcons
+                      name="fire"
+                      size={18}
+                      color="#f97316"
+                    />
+                    <Text style={styles.streakText}>
+                      Beste Streak: {bestStreakInSession}
+                    </Text>
+                  </View>
+                )}
 
                 {fails > 0 && (
                   <View style={styles.modalWrongAnswers}>
                     <Text style={styles.modalWrongAnswersTitle}>
-                      Still Need Practice ({fails})
+                      Noch Übung nötig ({fails})
                     </Text>
-                    {failureData.slice(0, 5).map((item, index) => {
-                      console.error("failureData item:", item); // Debug log
+                    {failureData.slice(0, 5).map((item, idx) => {
                       const parts = item.split("=>");
                       return (
-                        <View key={index} style={styles.wrongItem}>
+                        <View key={idx} style={styles.wrongItem}>
                           <View style={styles.wrongItemRow}>
                             <MaterialCommunityIcons
                               name="close-circle"
                               size={16}
                               color="#ef4444"
                             />
-                            <Text style={styles.wrongText}>{parts[0]}</Text>
+                            <Text style={styles.wrongText}>
+                              {parts[0]?.trim()}
+                            </Text>
                           </View>
                           <View style={styles.correctItemRow}>
                             <MaterialCommunityIcons
@@ -505,7 +479,9 @@ const PracticeFailedWords = () => {
                               size={16}
                               color="#10b981"
                             />
-                            <Text style={styles.correctText}>{parts[1]}</Text>
+                            <Text style={styles.correctText}>
+                              {parts[1]?.trim()}
+                            </Text>
                           </View>
                         </View>
                       );
@@ -523,29 +499,27 @@ const PracticeFailedWords = () => {
                       size={20}
                       color="#fff"
                     />
-                    <Text style={styles.primaryButtonText}>Practice Again</Text>
+                    <Text style={styles.primaryButtonText}>Neu laden</Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
-                    style={[styles.modalButton, styles.primaryButton]}
+                    style={[styles.modalButton, styles.secondaryButton]}
                     onPress={handleRetry}
                   >
                     <MaterialCommunityIcons
                       name="replay"
                       size={20}
-                      color="#fff"
+                      color="#6366f1"
                     />
-                    <Text style={styles.primaryButtonText}>
-                      Retry Same Words
+                    <Text style={styles.secondaryButtonText}>
+                      Nochmal wiederholen
                     </Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
                     style={styles.textButton}
                     onPress={handleMenu}
                   >
                     <Text style={styles.textButtonText}>
-                      Back to Statistics
+                      Zurück zur Statistik
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -558,15 +532,11 @@ const PracticeFailedWords = () => {
   );
 };
 
+export default PracticeFailedWords;
+
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
+  safeArea: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -579,6 +549,7 @@ const styles = StyleSheet.create({
     color: "#64748b",
     fontWeight: "600",
   },
+
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -598,10 +569,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  progressContainer: {
-    flex: 1,
-    marginHorizontal: 16,
-  },
+  progressContainer: { flex: 1, marginHorizontal: 16 },
   titleContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -609,11 +577,7 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 4,
   },
-  headerTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#6366f1",
-  },
+  headerTitle: { fontSize: 13, fontWeight: "700", color: "#6366f1" },
   progressText: {
     fontSize: 14,
     fontWeight: "600",
@@ -629,9 +593,10 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: "100%",
-    backgroundColor: "#6366f1",
+    backgroundColor: "#ef4444",
     borderRadius: 4,
   },
+
   failBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -644,21 +609,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 6,
   },
-  failBadgeText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#ef4444",
-  },
+  failBadgeText: { fontSize: 13, fontWeight: "600", color: "#ef4444" },
+
   quizContent: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-end",
     alignItems: "center",
     paddingHorizontal: 20,
+    paddingBottom: 8,
   },
-  imageContainer: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
+  imageContainer: { alignItems: "center", marginBottom: 24 },
   image: {
     width: 240,
     height: 240,
@@ -678,13 +638,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: "#eef2ff",
     borderRadius: 20,
+    gap: 6,
   },
-  speakHintText: {
-    marginLeft: 6,
-    fontSize: 13,
-    color: "#6366f1",
-    fontWeight: "500",
-  },
+  speakHintText: { fontSize: 13, color: "#6366f1", fontWeight: "500" },
+
   wordContainer: {
     alignItems: "center",
     backgroundColor: "#fff",
@@ -696,24 +653,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    gap: 6,
   },
-  word: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#1e293b",
-    marginBottom: 8,
+  word: { fontSize: 32, fontWeight: "700", color: "#1e293b" },
+  englword: { fontSize: 16, color: "#64748b", fontWeight: "500" },
+  levelBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    backgroundColor: "#fee2e2",
+    borderRadius: 10,
   },
-  englword: {
-    fontSize: 16,
-    color: "#64748b",
-    fontWeight: "500",
-  },
+  levelBadgeText: { fontSize: 11, fontWeight: "700", color: "#ef4444" },
+
   buttonContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 24,
+    paddingTop: 8,
+    paddingBottom: 8,
     gap: 12,
   },
   answerButton: {
@@ -731,21 +688,18 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  buttonText: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#475569",
-  },
-  selectedButton: {
-    backgroundColor: "#10b981",
-    borderColor: "#10b981",
-  },
-  wrongButton: {
-    backgroundColor: "#ef4444",
-    borderColor: "#ef4444",
-  },
-  selectedButtonText: {
-    color: "#fff",
+  buttonText: { fontSize: 20, fontWeight: "700", color: "#475569" },
+  selectedButton: { backgroundColor: "#10b981", borderColor: "#10b981" },
+  wrongButton: { backgroundColor: "#ef4444", borderColor: "#ef4444" },
+  selectedButtonText: { color: "#fff" },
+
+  buttonSpacer: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 8,
+    height: 80,
+    opacity: 0,
   },
   bannerContainer: {
     width: "100%",
@@ -756,11 +710,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
   },
+
   modalOverlay: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "rgba(0,0,0,0.7)",
     paddingHorizontal: 20,
   },
   modalCard: {
@@ -775,18 +730,10 @@ const styles = StyleSheet.create({
     shadowRadius: 25,
     elevation: 15,
   },
-  modalScrollView: {
-    width: "100%",
-  },
-  modalScrollContent: {
-    padding: 32,
-    alignItems: "center",
-  },
-  modalIconContainer: {
-    marginBottom: 20,
-  },
+  modalScrollView: { width: "100%" },
+  modalScrollContent: { padding: 32, alignItems: "center" },
   modalTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "800",
     color: "#1e293b",
     textAlign: "center",
@@ -802,29 +749,21 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 12,
   },
-  modalScoreNumber: {
-    fontSize: 48,
-    fontWeight: "800",
-    color: "#10b981",
-  },
+  modalScoreNumber: { fontSize: 48, fontWeight: "800", color: "#10b981" },
   modalScoreDivider: {
     fontSize: 32,
     fontWeight: "600",
     color: "#94a3b8",
     marginHorizontal: 8,
   },
-  modalScoreTotal: {
-    fontSize: 32,
-    fontWeight: "600",
-    color: "#64748b",
+  modalScoreTotal: { fontSize: 32, fontWeight: "600", color: "#64748b" },
+  streakRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
   },
-  modalSubtitle: {
-    fontSize: 18,
-    textAlign: "center",
-    color: "#475569",
-    marginBottom: 24,
-    fontWeight: "500",
-  },
+  streakText: { fontSize: 14, fontWeight: "700", color: "#f97316" },
   modalWrongAnswers: {
     width: "100%",
     backgroundColor: "#f8fafc",
@@ -840,14 +779,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     color: "#1e293b",
   },
-  wrongItem: {
-    marginBottom: 12,
-  },
-  wrongItemRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-  },
+  wrongItem: { marginBottom: 12 },
+  wrongItemRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
   correctItemRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -865,10 +798,7 @@ const styles = StyleSheet.create({
     color: "#10b981",
     fontWeight: "600",
   },
-  modalButtons: {
-    width: "100%",
-    gap: 12,
-  },
+  modalButtons: { width: "100%", gap: 12 },
   modalButton: {
     flexDirection: "row",
     justifyContent: "center",
@@ -877,23 +807,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
   },
-  primaryButton: {
-    backgroundColor: "#6366f1",
+  primaryButton: { backgroundColor: "#6366f1" },
+  primaryButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  secondaryButton: {
+    backgroundColor: "#eef2ff",
+    borderWidth: 2,
+    borderColor: "#c7d2fe",
   },
-  primaryButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  textButton: {
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  textButtonText: {
-    color: "#64748b",
-    fontSize: 15,
-    fontWeight: "600",
-  },
+  secondaryButtonText: { color: "#6366f1", fontSize: 16, fontWeight: "700" },
+  textButton: { paddingVertical: 12, alignItems: "center" },
+  textButtonText: { color: "#64748b", fontSize: 15, fontWeight: "600" },
 });
-
-export default PracticeFailedWords;
