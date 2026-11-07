@@ -12,10 +12,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Dimensions } from "react-native";
+import { Dimensions, useWindowDimensions } from "react-native";
 import * as Speech from "expo-speech";
 import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
-import "expo-dev-client";
 import { quizMainData } from "./words";
 import { TRANSLATIONS } from "./translations";
 import { SENTENCES } from "./sentences_data";
@@ -60,6 +59,12 @@ const App = () => {
   const [questionTimes, setQuestionTimes] = useState([]);
 
   const router = useRouter();
+  // Kompaktes Layout für niedrige Bildschirme (iPad-Kompatibilitätsmodus, iPhone SE)
+  const { height: windowHeight } = useWindowDimensions();
+  const isCompact = windowHeight < 750;
+  const imageSize = isCompact
+    ? Math.max(120, Math.min(240, Math.round(windowHeight * 0.24)))
+    : 240;
   const params = useLocalSearchParams();
   const levelParam = params?.level || "Alle"; // "Alle" | "A1" | "A2" | "B1"
 
@@ -626,23 +631,31 @@ const App = () => {
           <TouchableOpacity
             onPress={speakWord}
             activeOpacity={0.8}
-            style={styles.imageContainer}
+            style={[
+              styles.imageContainer,
+              isCompact && { marginBottom: 12 },
+            ]}
           >
             {quizData[currentQuestionIndex]?.img ? (
               <Image
                 source={quizData[currentQuestionIndex].img}
-                style={styles.image}
+                style={[styles.image, { width: imageSize, height: imageSize }]}
               />
             ) : (
-              <WordIcon word={quizData[currentQuestionIndex]} size={240} />
+              <WordIcon word={quizData[currentQuestionIndex]} size={imageSize} />
             )}
-            <View style={styles.speakHint}>
+            <View style={[styles.speakHint, isCompact && { marginTop: 8 }]}>
               <FontAwesome name="volume-up" size={16} color="#6366f1" />
               <Text style={styles.speakHintText}>{t("tapToHear")}</Text>
             </View>
           </TouchableOpacity>
 
-          <View style={styles.wordContainer}>
+          <View
+            style={[
+              styles.wordContainer,
+              isCompact && { paddingVertical: 14 },
+            ]}
+          >
             <Text style={styles.word}>{quizData[currentQuestionIndex]?.q}</Text>
             <Text style={styles.englword}>
               {(() => {

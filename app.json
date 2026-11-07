@@ -16,8 +16,9 @@
     ],
     "ios": {
       "supportsTablet": false,
+      "icon": "./assets/images/icon-ios.png",
       "bundleIdentifier": "com.tunakhan007.derdiedastrainer",
-      "buildNumber": "1",
+      "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -73,7 +74,13 @@
           "userTrackingUsageDescription": "Diese Kennung wird verwendet, um dir passendere Werbung anzuzeigen."
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "Diese Kennung wird verwendet, um dir passendere Werbung anzuzeigen."
+        }
+      ]
     ],
     "extra": {
       "router": {

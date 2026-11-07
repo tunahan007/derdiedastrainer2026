@@ -6,7 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
+  Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { openDatabaseSync } from "expo-sqlite";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
@@ -64,6 +66,7 @@ const Statistics = () => {
     weakWords: [],
   });
   const [selectedTab, setSelectedTab] = useState("overview");
+  const insets = useSafeAreaInsets();
   const [pulseAnim] = useState(new Animated.Value(1));
   const [currentRank, setCurrentRank] = useState(RANKS[0]);
   const [nextRank, setNextRank] = useState(RANKS[1]);
@@ -924,7 +927,22 @@ const Statistics = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.tabContainer}>
+      <View
+        style={[
+          styles.tabContainer,
+          Platform.OS === "ios" && { paddingTop: insets.top },
+        ]}
+      >
+        {Platform.OS === "ios" && (
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <MaterialCommunityIcons name="home" size={28} color="#6366f1" />
+          </TouchableOpacity>
+        )}
         {[
           { id: "overview", icon: "view-dashboard", label: t("overview") },
           {
@@ -993,6 +1011,12 @@ const styles = StyleSheet.create({
     borderBottomColor: "transparent",
   },
   activeTab: { borderBottomColor: "#6366f1" },
+  backButton: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingBottom: 3,
+  },
   tabText: { fontSize: 12, color: "#94a3b8", fontWeight: "600", marginTop: 4 },
   activeTabText: { color: "#6366f1" },
   topBannerContainer: {

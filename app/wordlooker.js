@@ -9,6 +9,7 @@ import {
   Image,
   Animated,
   ScrollView,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -51,6 +52,12 @@ const buildWordList = (level) => {
 const App = () => {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  // Kompaktes Layout für niedrige Bildschirme (iPad-Kompatibilitätsmodus, iPhone SE)
+  const { height: windowHeight } = useWindowDimensions();
+  const isCompact = windowHeight < 750;
+  const imageSize = isCompact
+    ? Math.max(110, Math.min(240, Math.round(windowHeight * 0.2)))
+    : 240;
 
   const [selectedLevel, setSelectedLevel] = useState("Alle");
   const [showLevelPicker, setShowLevelPicker] = useState(false);
@@ -241,7 +248,13 @@ const App = () => {
         </View>
 
         {/* Word Display */}
-        <Animated.View style={[styles.wordContainer, { opacity: fadeAnim }]}>
+        <Animated.View
+          style={[
+            styles.wordContainer,
+            isCompact && { paddingTop: 12 },
+            { opacity: fadeAnim },
+          ]}
+        >
           {/* Image or WordIcon */}
           <TouchableOpacity
             onPress={() => {
@@ -249,14 +262,20 @@ const App = () => {
               if (SENTENCES[current?.q]) setShowSentencePopup(true);
             }}
             activeOpacity={0.85}
-            style={styles.imageContainer}
+            style={[
+              styles.imageContainer,
+              isCompact && { marginBottom: 10 },
+            ]}
           >
             {current?.img ? (
-              <Image source={current.img} style={styles.image} />
+              <Image
+                source={current.img}
+                style={[styles.image, { width: imageSize, height: imageSize }]}
+              />
             ) : (
-              <WordIcon word={current} size={240} />
+              <WordIcon word={current} size={imageSize} />
             )}
-            <View style={styles.speakHint}>
+            <View style={[styles.speakHint, isCompact && { marginTop: 6 }]}>
               <FontAwesome name="volume-up" size={14} color="#6366f1" />
               <Text style={styles.speakHintText}>
                 {t("tapToHear") || "Tap to hear"}
@@ -277,7 +296,9 @@ const App = () => {
           </TouchableOpacity>
 
           {/* Text Card */}
-          <View style={styles.textCard}>
+          <View
+            style={[styles.textCard, isCompact && { paddingVertical: 12 }]}
+          >
             {/* Article badge */}
             <View
               style={[styles.articleBadge, { backgroundColor: levelColor }]}
