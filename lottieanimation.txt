@@ -1,0 +1,29 @@
+✅ Checkliste (bitte kurz prüfen)
+
+Sag mir danach nur Ja/Nein:
+
+npm install ✅
+
+expo install lottie-react-native ✅
+
+expo prebuild --clean ✅
+
+expo run:android ✅
+
+App läuft nicht in Expo Go ✅
+
+Wenn alle Ja → Fehler ist 100 % weg
+
+🛟 Notfall (wenn Build trotzdem zickt)
+
+Falls Windows/Android Studio spinnt:
+
+npx expo run:android --clear
+
+
+oder:
+
+cd android
+gradlew clean
+cd ..
+npx expo run:android

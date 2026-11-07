@@ -1,0 +1,11 @@
+/ios
+/android
+node_modules/
+.expo/
+_backup_*/
+all_code*.txt
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.DS_Store
