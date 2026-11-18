@@ -26,7 +26,7 @@ export default function ABanner() {
           setAdStatus("Ad loaded");
         }}
         onAdFailedToLoad={(error) => {
-          console.error("❌ Ad error:", error);
+          console.warn("⚠️ Ad not loaded:", error?.message);
           setAdStatus(`Error: ${error.message}`); // ✅ FIXED HERE
         }}
       />
