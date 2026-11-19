@@ -13,6 +13,7 @@
     "@lottiefiles/dotlottie-react": "^0.13.5",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~54.0.18",
+    "expo-build-properties": "~1.0.10",
     "expo-constants": "~18.0.10",
     "expo-linking": "~8.0.8",
     "expo-localization": "~17.0.8",
