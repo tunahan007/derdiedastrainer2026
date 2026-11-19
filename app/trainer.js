@@ -9,6 +9,7 @@ import {
   Image,
   Animated,
   ScrollView,
+  Vibration,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -22,6 +23,14 @@ import WordIcon from "./WordIcon";
 import { useTranslation } from "react-i18next";
 import ABanner from "./banner";
 import { openDatabaseSync } from "expo-sqlite";
+import {
+  CorrectFlash,
+  WrongFlash,
+  ScorePop,
+  ConfettiBurst,
+  useShakeAnimation,
+} from "../lib/QuizAnimations";
+import { maybeAskForReview } from "../lib/ratingService";
 
 const db = openDatabaseSync("appdata.db");
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -57,6 +66,14 @@ const App = () => {
   // Question timing
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
   const [questionTimes, setQuestionTimes] = useState([]);
+  // Feedback animations (trigger counters)
+  const [flashKey, setFlashKey] = useState(0);
+  const [wrongFlashKey, setWrongFlashKey] = useState(0);
+  const [hintKey, setHintKey] = useState(0);
+  const [correctHint, setCorrectHint] = useState("");
+  const [popKey, setPopKey] = useState(0);
+  const [confettiKey, setConfettiKey] = useState(0);
+  const { shakeAnim, shake } = useShakeAnimation();
 
   const router = useRouter();
   // Kompaktes Layout für niedrige Bildschirme (iPad-Kompatibilitätsmodus, iPhone SE)
@@ -329,6 +346,8 @@ const App = () => {
     let newStreak = currentStreak;
     let newBestStreak = bestSessionStreak;
 
+    const isLastQuestion = currentQuestionIndex + 1 >= quizData.length;
+
     if (isCorrect) {
       newScore++;
       setScore(newScore);
@@ -337,12 +356,23 @@ const App = () => {
       setBestSessionStreak(newBestStreak);
       setCurrentStreak(newStreak);
       correctData.push(article + " " + currentQuestion.q);
+      // Feedback: flash + "+1" every time, confetti every 3rd in a row or on last question
+      setFlashKey((k) => k + 1);
+      setPopKey((k) => k + 1);
+      if (newStreak % 3 === 0 || isLastQuestion) setConfettiKey((k) => k + 1);
     } else {
       newFails++;
       setFails(newFails);
       setIsWrong(true);
       newStreak = 0;
       setCurrentStreak(0);
+      // Feedback: vibration + shake
+      Vibration.vibrate([0, 80, 60, 80]);
+      shake();
+      setWrongFlashKey((k) => k + 1);
+      // Show the correct article right away
+      setCorrectHint(currentQuestion.a);
+      setHintKey((k) => k + 1);
 
       if (dbReady) {
         await saveFailedWord(currentQuestion.q, currentQuestion.a, article);
@@ -408,6 +438,9 @@ const App = () => {
             sessionDuration,
             isPerfect,
           );
+          // Rating prompt — slight delay so the result modal is visible first
+          const scorePercent = (newScore / quizData.length) * 100;
+          setTimeout(() => maybeAskForReview(db, scorePercent), 1500);
         } catch (error) {
           console.error("❌ Save error:", error);
         }
@@ -430,7 +463,7 @@ const App = () => {
         setSelectedAnswer(null);
         setIsWrong(false);
         setCurrentQuestionIndex((prev) => prev + 1);
-      }, 300);
+      }, isCorrect ? 300 : 900); // wrong: more time to read the correct article
     }
   };
 
@@ -549,6 +582,11 @@ const App = () => {
     setBestSessionStreak(0);
     setQuestionTimes([]);
     setQuestionStartTime(Date.now());
+    setFlashKey(0);
+    setWrongFlashKey(0);
+    setHintKey(0);
+    setPopKey(0);
+    setConfettiKey(0);
   };
 
   const handleMenu = () => router.back();
@@ -680,7 +718,12 @@ const App = () => {
         </Animated.View>
 
         {/* Answer Buttons */}
-        <View style={styles.buttonContainer}>
+        <Animated.View
+          style={[
+            styles.buttonContainer,
+            { transform: [{ translateX: shakeAnim }] },
+          ]}
+        >
           {["der", "die", "das"].map((article) => (
             <TouchableOpacity
               key={article}
@@ -702,11 +745,18 @@ const App = () => {
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </Animated.View>
 
         <View style={styles.bannerContainer}>
           <ABanner />
         </View>
+
+        {/* Feedback overlays */}
+        <CorrectFlash trigger={flashKey} />
+        <WrongFlash trigger={wrongFlashKey} />
+        <ScorePop trigger={hintKey} text={`✓ ${correctHint}`} duration={1100} />
+        <ScorePop trigger={popKey} />
+        <ConfettiBurst trigger={confettiKey} />
 
         {/* Modal */}
         <Modal visible={showModal} animationType="fade" transparent>

@@ -10,6 +10,7 @@ import {
   Animated,
   ScrollView,
   Alert,
+  Vibration,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -19,6 +20,13 @@ import { quizMainData } from "./words";
 import WordIcon from "./WordIcon";
 import ABanner from "./banner";
 import { openDatabaseSync } from "expo-sqlite";
+import {
+  CorrectFlash,
+  WrongFlash,
+  ScorePop,
+  ConfettiBurst,
+  useShakeAnimation,
+} from "../lib/QuizAnimations";
 
 const db = openDatabaseSync("appdata.db");
 
@@ -43,8 +51,22 @@ const PracticeFailedWords = () => {
   const [quizData, setQuizData] = useState([]);
   const [lastQuizData, setLastQuizData] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Live fail count of the current word (badge updates immediately on answer)
+  const [currentFailCount, setCurrentFailCount] = useState(0);
+  // Feedback animations (trigger counters)
+  const [flashKey, setFlashKey] = useState(0);
+  const [wrongFlashKey, setWrongFlashKey] = useState(0);
+  const [hintKey, setHintKey] = useState(0);
+  const [correctHint, setCorrectHint] = useState("");
+  const [popKey, setPopKey] = useState(0);
+  const [confettiKey, setConfettiKey] = useState(0);
+  const { shakeAnim, shake } = useShakeAnimation();
 
   const router = useRouter();
+
+  useEffect(() => {
+    setCurrentFailCount(quizData[currentQuestionIndex]?.failCount ?? 0);
+  }, [currentQuestionIndex, quizData]);
 
   useEffect(() => {
     loadFailedWords();
@@ -53,7 +75,7 @@ const PracticeFailedWords = () => {
   const loadFailedWords = async () => {
     try {
       const words = await db.getAllAsync(
-        `SELECT * FROM failed_words ORDER BY failCount DESC, lastFailed DESC`,
+        `SELECT * FROM failed_words WHERE failCount > 0 ORDER BY failCount DESC, lastFailed DESC`,
       );
 
       if (!words || words.length === 0) {
@@ -164,6 +186,7 @@ const PracticeFailedWords = () => {
     let newScore = score;
     let newFails = fails;
     let newStreak = currentStreak;
+    const isLastQuestion = currentQuestionIndex + 1 >= quizData.length;
 
     if (current.a === article) {
       newScore++;
@@ -171,6 +194,13 @@ const PracticeFailedWords = () => {
       newStreak++;
       setCurrentStreak(newStreak);
       if (newStreak > bestStreakInSession) setBestStreakInSession(newStreak);
+      // Badge sofort aktualisieren (z. B. 3x → 2x)
+      const reduced = Math.max(0, (current.failCount ?? 0) - 1);
+      current.failCount = reduced;
+      setCurrentFailCount(reduced);
+      setFlashKey((k) => k + 1);
+      setPopKey((k) => k + 1);
+      if (newStreak % 3 === 0 || isLastQuestion) setConfettiKey((k) => k + 1);
       await removeFromFailedWords(current.q, current.a);
       correctData.push(`${article} ${current.q}`);
     } else {
@@ -179,6 +209,15 @@ const PracticeFailedWords = () => {
       setIsWrong(true);
       newStreak = 0;
       setCurrentStreak(0);
+      const increased = (current.failCount ?? 0) + 1;
+      current.failCount = increased;
+      setCurrentFailCount(increased);
+      Vibration.vibrate([0, 80, 60, 80]);
+      shake();
+      setWrongFlashKey((k) => k + 1);
+      // Show the correct article right away
+      setCorrectHint(current.a);
+      setHintKey((k) => k + 1);
       await saveFailedWord(current.q, current.a, article);
       failureData.push(
         `${article} ${current.q} => ✔️ ${current.a} ${current.q}`,
@@ -205,7 +244,7 @@ const PracticeFailedWords = () => {
         setIsWrong(false);
         setCurrentQuestionIndex((prev) => prev + 1);
         setQuestionStartTime(Date.now());
-      }, 300);
+      }, current.a === article ? 300 : 900); // wrong: more time to read the correct article
     }
   };
 
@@ -222,6 +261,7 @@ const PracticeFailedWords = () => {
     setCount(0);
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
+    setIsWrong(false);
     setFailureData([]);
     setCorrectData([]);
     setShowModal(false);
@@ -242,6 +282,7 @@ const PracticeFailedWords = () => {
     setCount(0);
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
+    setIsWrong(false);
     setFailureData([]);
     setCorrectData([]);
     setSessionStartTime(Date.now());
@@ -315,11 +356,11 @@ const PracticeFailedWords = () => {
         </View>
 
         {/* Fail badge */}
-        {currentQuestion?.failCount > 1 && (
+        {currentFailCount > 0 && (
           <View style={styles.failBadge}>
             <MaterialCommunityIcons name="alert" size={16} color="#ef4444" />
             <Text style={styles.failBadgeText}>
-              {currentQuestion.failCount}x falsch beantwortet
+              {currentFailCount}x falsch beantwortet
             </Text>
           </View>
         )}
@@ -362,7 +403,12 @@ const PracticeFailedWords = () => {
         </Animated.View>
 
         {/* Answer Buttons */}
-        <View style={styles.buttonContainer}>
+        <Animated.View
+          style={[
+            styles.buttonContainer,
+            { transform: [{ translateX: shakeAnim }] },
+          ]}
+        >
           {["der", "die", "das"].map((article) => (
             <TouchableOpacity
               key={article}
@@ -388,11 +434,18 @@ const PracticeFailedWords = () => {
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </Animated.View>
 
         <View style={styles.bannerContainer}>
           <ABanner />
         </View>
+
+        {/* Feedback overlays */}
+        <CorrectFlash trigger={flashKey} />
+        <WrongFlash trigger={wrongFlashKey} />
+        <ScorePop trigger={hintKey} text={`✓ ${correctHint}`} duration={1100} />
+        <ScorePop trigger={popKey} />
+        <ConfettiBurst trigger={confettiKey} />
 
         {/* Results Modal */}
         <Modal
