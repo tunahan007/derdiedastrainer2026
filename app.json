@@ -53,7 +53,7 @@
     },
     "android": {
       "package": "com.tunakhan007.derdiedastrainer",
-      "versionCode": 17,
+      "versionCode": 18,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
