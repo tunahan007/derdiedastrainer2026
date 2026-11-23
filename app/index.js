@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,9 +9,10 @@ import {
   Animated,
   Modal,
   Alert,
+  Platform,
 } from "react-native";
 import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as Speech from "expo-speech";
 import { openDatabaseSync } from "expo-sqlite";
 import ABanner from "./banner";
@@ -19,6 +20,10 @@ import { OwlEmoji } from "./images/OwlIcon";
 import { quizMainData } from "./words";
 import { useTranslation } from "react-i18next";
 import LanguageSelector from "./LanguageSelector";
+import {
+  isPrivacyOptionsRequired,
+  showPrivacyOptions,
+} from "../lib/adsConsent";
 
 const db = openDatabaseSync("appdata.db");
 // WAL mode: prevents "database is locked" errors with concurrent operations
@@ -100,6 +105,10 @@ export default function Page() {
 
   const [achievements, setAchievements] = useState(null);
   const [currentRank, setCurrentRank] = useState(RANKS[0]);
+  // Letzter bekannter Rang (null = noch nicht geladen) – als Ref, damit
+  // calculateRank auch aus useFocusEffect heraus den aktuellen Wert sieht
+  const rankRef = useRef(null);
+  const isFirstFocus = useRef(true);
   const [nextRank, setNextRank] = useState(RANKS[1]);
   const [progressPercent, setProgressPercent] = useState(0);
   const [perfectsUntilNext, setPerfectsUntilNext] = useState(1);
@@ -147,6 +156,17 @@ export default function Page() {
       }).start();
     }
   }, [progressPercent, achievements]);
+
+  // Statistik neu laden, wenn man vom Quiz zurückkommt (Perfect-Zähler, Rang, Popup)
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) {
+        isFirstFocus.current = false; // beim Start lädt bereits initDB
+        return;
+      }
+      loadUserStats();
+    }, []),
+  );
 
   const loadSavedLevel = async () => {
     try {
@@ -281,15 +301,13 @@ export default function Page() {
         break;
       }
     }
-    if (
-      achievements &&
-      current.name !== currentRank.name &&
-      currentRank.name !== "Student"
-    ) {
+    const prev = rankRef.current;
+    if (prev && current.minPerfect > prev.minPerfect) {
       setCongratsRank(current);
       setShowCongratulations(true);
       triggerRankUp(current);
     }
+    rankRef.current = current;
     setCurrentRank(current);
     setNextRank(next);
     if (next && next.name !== current.name) {
@@ -304,7 +322,8 @@ export default function Page() {
   };
 
   const triggerRankUp = (newRank) => {
-    setShowRankPopup(true);
+    // Nur das große Glückwunsch-Modal zeigen: iOS kann nicht zwei Modals
+    // gleichzeitig darstellen, das zweite würde verschluckt.
     Animated.sequence([
       Animated.spring(scaleAnim, { toValue: 1.1, useNativeDriver: true }),
       Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }),
@@ -378,6 +397,12 @@ export default function Page() {
       }),
     ]).start(() => callback && callback());
   };
+
+  // DSGVO: Nutzer müssen ihre Werbe-Einwilligung ändern können
+  const [privacyRequired, setPrivacyRequired] = useState(false);
+  useEffect(() => {
+    isPrivacyOptionsRequired().then(setPrivacyRequired);
+  }, []);
 
   const openPlayStore = () =>
     Linking.openURL(
@@ -736,18 +761,37 @@ export default function Page() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.moreAppsButton}
-          onPress={openPlayStoreApps}
-        >
-          <FontAwesome name="bolt" size={20} color="#FFFFFF" />
-          <Text style={styles.moreAppsText}>{t("moreApps")}</Text>
-        </TouchableOpacity>
+        {/* Play-Store-Links nur auf Android (auf iOS nicht erlaubt/sinnvoll) */}
+        {Platform.OS === "android" && (
+          <>
+            <TouchableOpacity
+              style={styles.moreAppsButton}
+              onPress={openPlayStoreApps}
+            >
+              <FontAwesome name="bolt" size={20} color="#FFFFFF" />
+              <Text style={styles.moreAppsText}>{t("moreApps")}</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity style={styles.rateButton} onPress={openPlayStore}>
-          <FontAwesome name="star" size={20} color="#FFFFFF" />
-          <Text style={styles.rateText}>{t("rateUs")}</Text>
-        </TouchableOpacity>
+            <TouchableOpacity style={styles.rateButton} onPress={openPlayStore}>
+              <FontAwesome name="star" size={20} color="#FFFFFF" />
+              <Text style={styles.rateText}>{t("rateUs")}</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {privacyRequired && (
+          <TouchableOpacity
+            style={styles.privacyButton}
+            onPress={showPrivacyOptions}
+          >
+            <MaterialCommunityIcons
+              name="shield-account"
+              size={16}
+              color="#8E8E93"
+            />
+            <Text style={styles.privacyText}>{t("privacySettings")}</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.bannerWrapper}>
           <ABanner />
@@ -1303,6 +1347,15 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   rateText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  privacyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    marginTop: 12,
+  },
+  privacyText: { color: "#8E8E93", fontSize: 13, fontWeight: "500" },
   bannerWrapper: { marginTop: 24 },
   bottomSpacer: { height: 80 },
 

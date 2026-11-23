@@ -29,6 +29,7 @@ const en = {
   yourStats: "Your Stats",
   moreApps: "More Apps",
   rateUs: "Rate Us",
+  privacySettings: "Privacy settings",
   achievements: "Achievements",
   tutorialWelcomeTitle: "Welcome to Article Trainer! 🎉",
   tutorialWelcomeDesc:
@@ -150,6 +151,7 @@ const de = {
   yourStats: "Deine Statistiken",
   moreApps: "Mehr Apps",
   rateUs: "Bewerte uns",
+  privacySettings: "Datenschutz-Einstellungen",
   achievements: "Erfolge",
   tutorialWelcomeTitle: "Willkommen beim Artikel Trainer! 🎉",
   tutorialWelcomeDesc:
@@ -271,6 +273,7 @@ const ru = {
   yourStats: "Ваша статистика",
   moreApps: "Другие приложения",
   rateUs: "Оцените нас",
+  privacySettings: "Настройки конфиденциальности",
   achievements: "Достижения",
   tutorialWelcomeTitle: "Добро пожаловать в Artikel Trainer! 🎉",
   tutorialWelcomeDesc:
@@ -392,6 +395,7 @@ const tr = {
   yourStats: "İstatistikleriniz",
   moreApps: "Daha Fazla Uygulama",
   rateUs: "Bizi Değerlendirin",
+  privacySettings: "Gizlilik Ayarları",
   achievements: "Başarılar",
   tutorialWelcomeTitle: "Artikel Trainer'a Hoş Geldiniz! 🎉",
   tutorialWelcomeDesc:
@@ -513,6 +517,7 @@ const ar = {
   yourStats: "إحصاءاتك",
   moreApps: "مزيد من التطبيقات",
   rateUs: "قيّمنا",
+  privacySettings: "إعدادات الخصوصية",
   achievements: "الإنجازات",
   tutorialWelcomeTitle: "مرحباً بك في Artikel Trainer! 🎉",
   tutorialWelcomeDesc:
@@ -633,6 +638,7 @@ const fr = {
   yourStats: "Vos statistiques",
   moreApps: "Plus d'applications",
   rateUs: "Évaluez-nous",
+  privacySettings: "Paramètres de confidentialité",
   achievements: "Succès",
   tutorialWelcomeTitle: "Bienvenue dans Artikel Trainer! 🎉",
   tutorialWelcomeDesc:
@@ -756,6 +762,7 @@ const es = {
   yourStats: "Tus estadísticas",
   moreApps: "Más aplicaciones",
   rateUs: "Califícanos",
+  privacySettings: "Configuración de privacidad",
   achievements: "Logros",
   tutorialWelcomeTitle: "¡Bienvenido a Artikel Trainer! 🎉",
   tutorialWelcomeDesc:
@@ -879,6 +886,7 @@ const uk = {
   yourStats: "Ваша статистика",
   moreApps: "Більше застосунків",
   rateUs: "Оцініть нас",
+  privacySettings: "Налаштування конфіденційності",
   achievements: "Досягнення",
   tutorialWelcomeTitle: "Ласкаво просимо до Artikel Trainer! 🎉",
   tutorialWelcomeDesc:
