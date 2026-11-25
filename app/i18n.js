@@ -984,6 +984,9 @@ const uk = {
   wordsLabel: "Слова",
 };
 
+// Für Tests (__tests__/translations.test.js)
+export const LANGUAGE_RESOURCES = { en, de, ru, tr, ar, fr, es, uk };
+
 export const SUPPORTED_LANGUAGES = [
   { code: "en", name: "English", nativeName: "English", flag: "🇬🇧" },
   { code: "de", name: "German", nativeName: "Deutsch", flag: "🇩🇪" },

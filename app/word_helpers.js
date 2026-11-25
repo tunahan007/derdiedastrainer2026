@@ -1,6 +1,7 @@
 // Word data helpers — used by trainer, wordlooker, sentences screens
 import { TRANSLATIONS } from "./translations";
 import { SENTENCES } from "./sentences_data";
+import { shuffle as fisherYates } from "../lib/quizLogic";
 
 // Map compact fields to readable names for all screens
 export const getWord = (w) => w?.q || "";
@@ -38,5 +39,5 @@ export const buildQuizList = (words, level, shuffle = true) => {
     : words.filter(w => w.l === level);
   const pool = filtered.length >= 10 ? filtered : words;
   if (!shuffle) return pool;
-  return [...pool].sort(() => Math.random() - 0.5);
+  return fisherYates(pool);
 };

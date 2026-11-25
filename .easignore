@@ -14,3 +14,9 @@ komutlarim*.txt
 paketyapma.txt
 lottieanimation.txt
 App.js
+*.aab
+*.apk
+*.jks
+.env*.local
+dist/
+web-build/

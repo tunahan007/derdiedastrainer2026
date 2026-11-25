@@ -20,21 +20,11 @@ import { TRANSLATIONS } from "./translations";
 import { SENTENCES } from "./sentences_data";
 import { useTranslation } from "react-i18next";
 
+import { RANKS, getRankInfo } from "../lib/ranks";
+
 const db = openDatabaseSync("appdata.db");
 const screenWidth = Dimensions.get("window").width;
 
-const RANKS = [
-  { minPerfect: 0, name: "Student", color: "#94a3b8", emoji: "📚" },
-  { minPerfect: 1, name: "Scholar", color: "#60a5fa", emoji: "🎓" },
-  { minPerfect: 3, name: "Bachelor", color: "#8b5cf6", emoji: "🎓⭐" },
-  { minPerfect: 5, name: "Master", color: "#10b981", emoji: "🎓⭐⭐" },
-  { minPerfect: 10, name: "Doctor", color: "#f59e0b", emoji: "🧪👨‍🔬" },
-  { minPerfect: 20, name: "Professor", color: "#ef4444", emoji: "🦉👑" },
-  { minPerfect: 35, name: "Dean", color: "#ec4899", emoji: "🏛️👑" },
-  { minPerfect: 50, name: "Rector", color: "#8b5cf6", emoji: "🎖️🦉" },
-  { minPerfect: 75, name: "Academy Fellow", color: "#f97316", emoji: "🌟🎓" },
-  { minPerfect: 100, name: "Grandmaster", color: "#6366f1", emoji: "💎👑" },
-];
 
 const TOTAL_WORDS = quizMainData.length;
 
@@ -247,26 +237,12 @@ const Statistics = () => {
   };
 
   const calculateRank = (perfectScores) => {
-    let current = RANKS[0];
-    let next = RANKS[1];
-    for (let i = RANKS.length - 1; i >= 0; i--) {
-      if (perfectScores >= RANKS[i].minPerfect) {
-        current = RANKS[i];
-        next = RANKS[i + 1] || RANKS[i];
-        break;
-      }
-    }
+    const { current, next, progressPercent, perfectsUntilNext } =
+      getRankInfo(perfectScores);
     setCurrentRank(current);
     setNextRank(next);
-    if (next && next.name !== current.name) {
-      const inCurrent = perfectScores - current.minPerfect;
-      const needed = next.minPerfect - current.minPerfect;
-      setProgressPercent(needed > 0 ? (inCurrent / needed) * 100 : 100);
-      setPerfectsUntilNext(next.minPerfect - perfectScores);
-    } else {
-      setProgressPercent(100);
-      setPerfectsUntilNext(0);
-    }
+    setProgressPercent(progressPercent);
+    setPerfectsUntilNext(perfectsUntilNext);
   };
 
   const calculateAccuracy = () => {

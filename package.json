@@ -6,7 +6,11 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "jest",
+    "lint": "expo lint",
+    "check": "npm run lint && npm test",
+    "release:check": "npx expo-doctor && npm run check"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -39,5 +43,23 @@
     "react-native-svg": "15.12.1",
     "react-native-web": "^0.21.0"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~10.0.0",
+    "jest": "~29.7.0",
+    "jest-expo": "~54.0.18"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/_backup_",
+      "/ios/",
+      "/android/"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/_backup_"
+    ]
+  }
 }

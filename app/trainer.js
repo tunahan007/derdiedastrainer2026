@@ -31,16 +31,15 @@ import {
   useShakeAnimation,
 } from "../lib/QuizAnimations";
 import { maybeAskForReview } from "../lib/ratingService";
+import { buildQuiz as buildQuizFromWords, getRewardKey } from "../lib/quizLogic";
+import {
+  computeDayStreak,
+  getNewlyUnlockedAchievements,
+  getQuestionTimeStats,
+} from "../lib/progress";
 
 const db = openDatabaseSync("appdata.db");
 const SCREEN_WIDTH = Dimensions.get("window").width;
-
-const ACHIEVEMENTS = [
-  { id: "achievementFirstStar", requirement: 1 },
-  { id: "achievementGoldenStudent", requirement: 5 },
-  { id: "achievementDoctoralAward", requirement: 10 },
-  { id: "achievementProfessorBadge", requirement: 20 },
-];
 
 const App = () => {
   const [sessionStartTime, setSessionStartTime] = useState(Date.now());
@@ -86,15 +85,10 @@ const App = () => {
   const levelParam = params?.level || "Alle"; // "Alle" | "A1" | "A2" | "B1"
 
   const buildQuiz = (lvl) => {
-    console.log("🎯 buildQuiz called with level:", lvl);
-    const filtered =
-      !lvl || lvl === "Alle"
-        ? quizMainData
-        : quizMainData.filter((w) => w.l === lvl);
-    // fallback: if filtered is too small, use all words
-    const pool = filtered.length >= 10 ? filtered : quizMainData;
-    console.log(`🎯 Level: ${lvl}, Pool: ${pool.length} words`);
-    return [...pool].sort(() => Math.random() - 0.5).slice(0, 20);
+    // Logik in lib/quizLogic.js (Fisher-Yates, ohne Duplikate, Fallback bei kleinem Pool)
+    const quiz = buildQuizFromWords(quizMainData, lvl);
+    console.log(`🎯 Level: ${lvl}, Quiz: ${quiz.length} words`);
+    return quiz;
   };
 
   const initialQuiz = () => buildQuiz(levelParam);
@@ -405,13 +399,11 @@ const App = () => {
       const isPerfect = newScore === quizData.length;
 
       // Calculate time stats
-      const allTimes = [...newQuestionTimes];
-      const avgTime =
-        allTimes.length > 0
-          ? Math.round(allTimes.reduce((a, b) => a + b, 0) / allTimes.length)
-          : 0;
-      const fastestQ = allTimes.length > 0 ? Math.min(...allTimes) : 0;
-      const slowestQ = allTimes.length > 0 ? Math.max(...allTimes) : 0;
+      const {
+        avg: avgTime,
+        fastest: fastestQ,
+        slowest: slowestQ,
+      } = getQuestionTimeStats(newQuestionTimes);
 
       if (dbReady) {
         try {
@@ -500,42 +492,18 @@ const App = () => {
         newFastestTime = sessionTime;
       }
 
-      // Streak calculation
-      const today = new Date().toISOString().split("T")[0];
-      const lastPlayed = currentAch.lastPlayedDate
-        ? new Date(currentAch.lastPlayedDate).toISOString().split("T")[0]
-        : null;
-
-      let newConsecutiveDays = currentAch.consecutiveDays || 0;
-      let newLongestStreak = currentAch.longestStreak || 0;
-
-      if (!lastPlayed) {
-        newConsecutiveDays = 1;
-      } else {
-        const diffDays = Math.floor(
-          (new Date(today) - new Date(lastPlayed)) / (1000 * 60 * 60 * 24),
-        );
-        if (diffDays === 0) {
-          // same day, no change
-        } else if (diffDays === 1) {
-          newConsecutiveDays++;
-        } else {
-          newConsecutiveDays = 1;
-        }
-      }
-      if (newConsecutiveDays > newLongestStreak)
-        newLongestStreak = newConsecutiveDays;
+      // Tages-Streak (lokaler Kalendertag) — Logik in lib/progress.js
+      const {
+        consecutiveDays: newConsecutiveDays,
+        longestStreak: newLongestStreak,
+      } = computeDayStreak(currentAch);
 
       // Achievement unlocks
-      const achievementUpdates = {};
-      ACHIEVEMENTS.forEach((ach) => {
-        if (newPerfectScores >= ach.requirement && currentAch[ach.id] === 0) {
-          achievementUpdates[ach.id] = 1;
-        }
-      });
-
-      const achievementFields = Object.entries(achievementUpdates)
-        .map(([key, value]) => `${key} = ${value}`)
+      const achievementFields = getNewlyUnlockedAchievements(
+        newPerfectScores,
+        currentAch,
+      )
+        .map((id) => `${id} = 1`)
         .join(", ");
 
       const baseUpdate = `
@@ -607,15 +575,8 @@ const App = () => {
 
   // ─── UI HELPERS ──────────────────────────────────────────────────────────────
 
-  const getRewardMessage = (score) => {
-    const isPerfect = score === quizData.length;
-    if (isPerfect) return t("rewardPerfect");
-    if (score >= 18) return t("reward18");
-    if (score >= 15) return t("reward15");
-    if (score >= 10) return t("reward10");
-    if (score >= 5) return t("reward5");
-    return t("rewardDefault");
-  };
+  const getRewardMessage = (score) =>
+    t(getRewardKey(score, quizData.length));
 
   const progressPercentage =
     ((currentQuestionIndex + 1) / quizData.length) * 100;
