@@ -13,6 +13,7 @@ import {
   Vibration,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -31,6 +32,7 @@ import {
 const db = openDatabaseSync("appdata.db");
 
 const PracticeFailedWords = () => {
+  const { t } = useTranslation();
   const [sessionStartTime, setSessionStartTime] = useState(Date.now());
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
   const [questionTimes, setQuestionTimes] = useState([]);
@@ -79,11 +81,9 @@ const PracticeFailedWords = () => {
       );
 
       if (!words || words.length === 0) {
-        Alert.alert(
-          "No Failed Words",
-          "You haven't made any mistakes yet! Try the regular trainer first.",
-          [{ text: "OK", onPress: () => router.back() }],
-        );
+        Alert.alert(t("noFailedWordsTitle"), t("noFailedWordsMsg"), [
+          { text: t("ok"), onPress: () => router.back() },
+        ]);
         return;
       }
 
@@ -111,7 +111,7 @@ const PracticeFailedWords = () => {
       setLoading(false);
     } catch (error) {
       console.error("Error loading failed words:", error);
-      Alert.alert("Error", "Could not load failed words. Please try again.");
+      Alert.alert(t("errorTitle"), t("loadFailedWordsError"));
       router.back();
     }
   };
@@ -309,7 +309,7 @@ const PracticeFailedWords = () => {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
           <MaterialCommunityIcons name="loading" size={48} color="#6366f1" />
-          <Text style={styles.loadingText}>Lade Fehlerwörter...</Text>
+          <Text style={styles.loadingText}>{t("loadingFailedWords")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -335,7 +335,7 @@ const PracticeFailedWords = () => {
           <View style={styles.progressContainer}>
             <View style={styles.titleContainer}>
               <MaterialCommunityIcons name="crown" size={16} color="#fbbf24" />
-              <Text style={styles.headerTitle}>Fehlerwörter üben</Text>
+              <Text style={styles.headerTitle}>{t("practiceFailedWords")}</Text>
             </View>
             <Text style={styles.progressText}>
               {currentQuestionIndex + 1} / {quizData.length}
@@ -360,7 +360,7 @@ const PracticeFailedWords = () => {
           <View style={styles.failBadge}>
             <MaterialCommunityIcons name="alert" size={16} color="#ef4444" />
             <Text style={styles.failBadgeText}>
-              {currentFailCount}x falsch beantwortet
+              {t("wrongCountBadge", { n: currentFailCount })}
             </Text>
           </View>
         )}
@@ -387,7 +387,7 @@ const PracticeFailedWords = () => {
                 size={16}
                 color="#6366f1"
               />
-              <Text style={styles.speakHintText}>Tippen zum Hören</Text>
+              <Text style={styles.speakHintText}>{t("tapToHear")}</Text>
             </View>
           </TouchableOpacity>
 
@@ -482,10 +482,10 @@ const PracticeFailedWords = () => {
 
                 <Text style={styles.modalTitle}>
                   {score === quizData.length
-                    ? "Perfekt! 🎉"
+                    ? t("practicePerfect")
                     : score >= quizData.length * 0.7
-                      ? "Guter Fortschritt! 👍"
-                      : "Weiter üben! 💪"}
+                      ? t("practiceGoodProgress")
+                      : t("practiceKeepGoing")}
                 </Text>
 
                 <View style={styles.scoreCard}>
@@ -502,7 +502,7 @@ const PracticeFailedWords = () => {
                       color="#f97316"
                     />
                     <Text style={styles.streakText}>
-                      Beste Streak: {bestStreakInSession}
+                      {t("bestStreakLabel", { n: bestStreakInSession })}
                     </Text>
                   </View>
                 )}
@@ -510,7 +510,7 @@ const PracticeFailedWords = () => {
                 {fails > 0 && (
                   <View style={styles.modalWrongAnswers}>
                     <Text style={styles.modalWrongAnswersTitle}>
-                      Noch Übung nötig ({fails})
+                      {t("needsPractice", { n: fails })}
                     </Text>
                     {failureData.slice(0, 5).map((item, idx) => {
                       const parts = item.split("=>");
@@ -552,7 +552,7 @@ const PracticeFailedWords = () => {
                       size={20}
                       color="#fff"
                     />
-                    <Text style={styles.primaryButtonText}>Neu laden</Text>
+                    <Text style={styles.primaryButtonText}>{t("reloadPractice")}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.modalButton, styles.secondaryButton]}
@@ -564,7 +564,7 @@ const PracticeFailedWords = () => {
                       color="#6366f1"
                     />
                     <Text style={styles.secondaryButtonText}>
-                      Nochmal wiederholen
+                      {t("repeatAgain")}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -572,7 +572,7 @@ const PracticeFailedWords = () => {
                     onPress={handleMenu}
                   >
                     <Text style={styles.textButtonText}>
-                      Zurück zur Statistik
+                      {t("backToStatistics")}
                     </Text>
                   </TouchableOpacity>
                 </View>

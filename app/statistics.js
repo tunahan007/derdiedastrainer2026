@@ -642,7 +642,7 @@ const Statistics = () => {
               <View style={styles.sessionStreak}>
                 <MaterialCommunityIcons name="fire" size={16} color="#f97316" />
                 <Text style={styles.sessionStreakText}>
-                  Best Streak: {item.bestStreak}
+                  {t("bestStreakLabel", { n: item.bestStreak })}
                 </Text>
               </View>
             )}
@@ -879,7 +879,7 @@ const Statistics = () => {
           </View>
           <View style={styles.progressItem}>
             <Text style={styles.progressItemLabel}>
-              Wörter {t("mastered")}: {wordProgress.totalMastered} /{" "}
+              {t("wordsLabel")} {t("mastered")}: {wordProgress.totalMastered} /{" "}
               {TOTAL_WORDS}
             </Text>
             <View style={styles.progressBar}>

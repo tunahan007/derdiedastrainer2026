@@ -321,31 +321,31 @@ export default function Page() {
     if (!achievements) return [];
     return [
       {
-        label: "Perfect Quizzes",
+        label: t("perfectQuizzes"),
         value: achievements.perfectScores || 0,
         icon: "star",
         color: "#fbbf24",
       },
       {
-        label: "Highest Score",
+        label: t("highestScore"),
         value: achievements.highestScore || 0,
         icon: "trophy",
         color: "#ef4444",
       },
       {
-        label: "Day Streak",
+        label: t("dayStreak"),
         value: achievements.consecutiveDays || 0,
         icon: "fire",
         color: "#f97316",
       },
       {
-        label: "Total Quizzes",
+        label: t("totalQuizzes"),
         value: achievements.totalQuizzes || 0,
         icon: "book",
         color: "#8b5cf6",
       },
       {
-        label: "Total Correct",
+        label: t("totalCorrect"),
         value: achievements.totalCorrect || 0,
         icon: "check-circle",
         color: "#10b981",
@@ -668,7 +668,7 @@ export default function Page() {
             >
               {getUnlockedAchievements().map((ach, idx) => (
                 <View key={idx} style={styles.achievementBadge}>
-                  <Text style={styles.achievementBadgeText}>{ach.label}</Text>
+                  <Text style={styles.achievementBadgeText}>{t(ach.id)}</Text>
                 </View>
               ))}
             </ScrollView>
@@ -925,7 +925,7 @@ export default function Page() {
         <View style={styles.modalOverlay}>
           <View style={styles.leaderboardBox}>
             <View style={styles.leaderboardHeader}>
-              <Text style={styles.leaderboardTitle}>Your Stats</Text>
+              <Text style={styles.leaderboardTitle}>{t("yourStats")}</Text>
               <TouchableOpacity onPress={() => setShowLeaderboard(false)}>
                 <MaterialCommunityIcons
                   name="close"
@@ -1005,7 +1005,7 @@ export default function Page() {
                           isUnlocked && styles.achievementItemLabelUnlocked,
                         ]}
                       >
-                        {ach.label}
+                        {t(ach.id)}
                       </Text>
                       <Text style={styles.achievementItemProgress}>
                         {progress} / {ach.requirement}

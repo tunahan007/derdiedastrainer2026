@@ -25,7 +25,11 @@ sourceFiles.forEach((file) => {
   for (const m of src.matchAll(/\bt\(\s*["']([A-Za-z0-9_.]+)["']/g)) usedKeys.add(m[1]);
 });
 // Dynamisch erzeugte Schlüssel (z. B. aus lib/quizLogic.getRewardKey)
-["rewardPerfect", "reward18", "reward15", "reward10", "reward5", "rewardDefault"].forEach((k) =>
+[
+  "rewardPerfect", "reward18", "reward15", "reward10", "reward5", "rewardDefault",
+  // t(ach.id) in index.js
+  "achievementFirstStar", "achievementGoldenStudent", "achievementDoctoralAward", "achievementProfessorBadge",
+].forEach((k) =>
   usedKeys.add(k),
 );
 

@@ -289,7 +289,7 @@ const App = () => {
                   color="#8b5cf6"
                 />
                 <Text style={styles.sentenceHintText}>
-                  Tippe für Beispielsätze
+                  {t("tapForSentences")}
                 </Text>
               </View>
             )}
@@ -450,9 +450,9 @@ const App = () => {
                 size={72}
                 color="#10b981"
               />
-              <Text style={styles.modalTitle}>Liste abgeschlossen! 🎉</Text>
+              <Text style={styles.modalTitle}>{t("listCompleted")}</Text>
               <Text style={styles.modalSubtitle}>
-                {quizData.length} Wörter durchgesehen
+                {t("wordsReviewed", { n: quizData.length })}
               </Text>
               <View style={styles.modalButtons}>
                 <TouchableOpacity
@@ -475,7 +475,7 @@ const App = () => {
                     size={20}
                     color="#6366f1"
                   />
-                  <Text style={styles.secondaryButtonText}>Von vorne</Text>
+                  <Text style={styles.secondaryButtonText}>{t("startOver")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.textButton}
@@ -537,12 +537,12 @@ const App = () => {
                   color="#fff"
                 />
                 <Text style={styles.sentenceMoreBtnText}>
-                  Alle 4 Fälle ansehen →
+                  {t("viewAll4Cases")}
                 </Text>
               </TouchableOpacity>
 
               <Text style={styles.sentenceHintBottom}>
-                Akkusativ · Dativ · Genitiv im Sentences-Bereich
+                {t("casesInSentencesHint")}
               </Text>
             </View>
           </View>

@@ -360,7 +360,7 @@ export default function SentencesScreen() {
                   onPress={() => speakSentence(activeCase)}
                 >
                   <FontAwesome name="volume-up" size={16} color="#6366f1" />
-                  <Text style={styles.speakSentenceBtnText}>Anhören</Text>
+                  <Text style={styles.speakSentenceBtnText}>{t("listen")}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -371,7 +371,7 @@ export default function SentencesScreen() {
                   color="#cbd5e1"
                 />
                 <Text style={styles.noSentenceText}>
-                  Kein Beispielsatz verfügbar
+                  {t("noExampleSentence")}
                 </Text>
               </View>
             )}
@@ -379,7 +379,7 @@ export default function SentencesScreen() {
             {/* All 4 cases overview */}
             {!!SENTENCES[current?.q] && (
               <View style={styles.overviewCard}>
-                <Text style={styles.overviewTitle}>Alle Formen</Text>
+                <Text style={styles.overviewTitle}>{t("allForms")}</Text>
                 {CASES.map((c) => (
                   <TouchableOpacity
                     key={c.key}
@@ -523,10 +523,10 @@ export default function SentencesScreen() {
                 color="#10b981"
               />
               <Text style={styles.completionTitle}>
-                Liste abgeschlossen! 🎉
+                {t("listCompleted")}
               </Text>
               <Text style={styles.completionSubtitle}>
-                {quizData.length} Wörter mit Sätzen geübt
+                {t("wordsWithSentencesPracticed", { n: quizData.length })}
               </Text>
               <View style={styles.completionButtons}>
                 <TouchableOpacity
