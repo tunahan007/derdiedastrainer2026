@@ -82,6 +82,7 @@
         }
       ],
       "./plugins/withOptionalPortrait.js",
+      "./plugins/withPodsDeploymentTarget.js",
       [
         "expo-build-properties",
         {

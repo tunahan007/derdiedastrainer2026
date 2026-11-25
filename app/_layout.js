@@ -1,7 +1,10 @@
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
-import { initAds } from "../lib/adsConsent";
+import { initAds, getInitStep } from "../lib/adsConsent";
+
+// Die App darf beim Start nie dauerhaft auf Werbung/Consent warten.
+const STARTUP_MAX_WAIT_MS = 8000;
 import { initI18n } from "./i18n";
 import { I18nextProvider } from "react-i18next";
 import i18n from "./i18n";
@@ -12,7 +15,23 @@ export default function Layout() {
 
   useEffect(() => {
     // DSGVO-Einwilligung -> ATT (iOS) -> AdMob-Start
-    initAds().finally(() => setAttDone(true));
+    // Spätestens nach STARTUP_MAX_WAIT_MS geht es weiter; die Werbung startet
+    // dann im Hintergrund (Banner warten selbst über useAdsReady()).
+    let finished = false;
+    const timer = setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      // console.error erscheint auch im Release-Log (Konsole-App)
+      console.error(`⏱ Startup: initAds hängt bei "${getInitStep()}" – App startet trotzdem`);
+      setAttDone(true);
+    }, STARTUP_MAX_WAIT_MS);
+    initAds().finally(() => {
+      clearTimeout(timer);
+      if (finished) return;
+      finished = true;
+      setAttDone(true);
+    });
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {

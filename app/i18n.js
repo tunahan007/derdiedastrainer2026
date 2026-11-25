@@ -1056,7 +1056,18 @@ export const changeLanguage = async (code) => {
 };
 
 export const initI18n = async () => {
-  const saved = await loadSavedLanguage();
+  // Höchstens 3 s auf die gespeicherte Sprache (SQLite) warten, sonst Gerätesprache
+  let langTimer;
+  const saved = await Promise.race([
+    loadSavedLanguage(),
+    new Promise((resolve) => {
+      langTimer = setTimeout(() => {
+        console.error("⏱ Startup: loadSavedLanguage hängt – nutze Gerätesprache");
+        resolve(null);
+      }, 3000);
+    }),
+  ]);
+  clearTimeout(langTimer);
   const device = getDeviceLanguage();
   const initial = saved || device;
 
