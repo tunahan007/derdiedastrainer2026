@@ -18,7 +18,7 @@
       "supportsTablet": false,
       "icon": "./assets/images/icon-ios.png",
       "bundleIdentifier": "com.tunakhan007.derdiedastrainer",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
