@@ -2,7 +2,7 @@
   "expo": {
     "name": "Der Die Das Trainer",
     "slug": "derdiedastrainer2025",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -19,7 +19,7 @@
       "icon": "./assets/images/icon-ios.png",
       "bundleIdentifier": "com.tunakhan007.derdiedastrainer",
       "appleTeamId": "Y2257DK92G",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -54,7 +54,7 @@
     },
     "android": {
       "package": "com.tunakhan007.derdiedastrainer",
-      "versionCode": 19,
+      "versionCode": 20,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
