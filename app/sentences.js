@@ -10,7 +10,10 @@ import {
   Animated,
   ScrollView,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
 import { FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -59,6 +62,7 @@ const buildList = (level) => {
 export default function SentencesScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [selectedLevel, setSelectedLevel] = useState("Alle");
   const [showLevelPicker, setShowLevelPicker] = useState(false);
@@ -155,9 +159,6 @@ export default function SentencesScreen() {
   // ── Effects ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    try {
-      speakSentence("n");
-    } catch (e) {}
     buttonAnim.setValue(0);
     Animated.spring(buttonAnim, {
       toValue: 1,
@@ -166,11 +167,13 @@ export default function SentencesScreen() {
     }).start();
   }, [currentIndex]);
 
+  // Genau EIN Vorlesen pro Wort-/Fallwechsel. Vorher sprachen zwei Effekte
+  // (currentIndex + activeCase) beim Wortwechsel beide den Nominativ.
   useEffect(() => {
     try {
       speakSentence(activeCase);
     } catch (e) {}
-  }, [activeCase]);
+  }, [current?.q, activeCase]);
 
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -202,7 +205,7 @@ export default function SentencesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -449,7 +452,13 @@ export default function SentencesScreen() {
         </Animated.View>
 
         {/* Banner */}
-        <View style={styles.bannerWrapper}>
+        {/* Unterer Rand (Home-Indikator) nur hier, nicht doppelt über SafeAreaView */}
+        <View
+          style={[
+            styles.bannerWrapper,
+            { paddingBottom: Math.max(insets.bottom, 4) },
+          ]}
+        >
           <ABanner />
         </View>
 
@@ -744,15 +753,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 6,
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
   },
   navButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
@@ -764,9 +773,9 @@ const styles = StyleSheet.create({
   },
   disabledButton: { opacity: 0.4 },
   homeButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: "#eef2ff",
     justifyContent: "center",
     alignItems: "center",
@@ -776,8 +785,7 @@ const styles = StyleSheet.create({
 
   bannerWrapper: {
     alignItems: "center",
-    paddingTop: 4,
-    paddingBottom: 16,
+    paddingTop: 2,
     backgroundColor: "#fff",
   },
 

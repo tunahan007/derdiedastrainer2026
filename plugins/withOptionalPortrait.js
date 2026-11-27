@@ -1,7 +1,7 @@
 // Marks screen-orientation hardware features as optional so Google Play
 // does not exclude tablets, Chromebooks and XR devices.
 // The app itself stays locked to portrait via "orientation" in app.json.
-const { withAndroidManifest } = require("@expo/config-plugins");
+const { withAndroidManifest } = require("expo/config-plugins");
 
 const FEATURES = [
   "android.hardware.screen.portrait",

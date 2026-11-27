@@ -2,7 +2,7 @@
 // Hintergrund: Xcode 27 unterstützt nur noch 15.0+, einige Pods (Lottie,
 // AsyncStorage, RNSVG, Google Mobile Ads/UMP) setzen 12.0–13.4 → Warnungen.
 // Als Config-Plugin, damit `expo prebuild --clean` die Änderung nicht löscht.
-const { withPodfile } = require("@expo/config-plugins");
+const { withPodfile } = require("expo/config-plugins");
 
 const MIN_TARGET = "15.1";
 const MARKER = "# withPodsDeploymentTarget";
