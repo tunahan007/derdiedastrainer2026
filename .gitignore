@@ -42,3 +42,6 @@ yarn-error.*
 _backup_*/
 *.aab
 *.apk
+
+# Build- und Geräte-Logs
+*.log

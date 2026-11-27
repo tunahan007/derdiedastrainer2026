@@ -18,6 +18,7 @@
       "supportsTablet": false,
       "icon": "./assets/images/icon-ios.png",
       "bundleIdentifier": "com.tunakhan007.derdiedastrainer",
+      "appleTeamId": "Y2257DK92G",
       "buildNumber": "6",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -83,12 +84,14 @@
       ],
       "./plugins/withOptionalPortrait.js",
       "./plugins/withPodsDeploymentTarget.js",
+      "./plugins/withIosProjectVersion.js",
       [
         "expo-build-properties",
         {
           "android": {
             "enableMinifyInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "# SDK 58 / R8: WorkManager (genutzt vom Google Mobile Ads SDK) erzeugt seine\n# Room-Datenbank per Reflection - ohne diese Regeln Absturz beim Start.\n-keep class * extends androidx.room.RoomDatabase { <init>(); }\n-keep class androidx.work.impl.WorkDatabase_Impl { *; }\n-keep class androidx.work.impl.** { *; }\n-keep class androidx.startup.** { *; }\n-keep class * implements androidx.startup.Initializer { <init>(); }\n# Google Mobile Ads / UMP\n-keep class com.google.android.gms.ads.** { *; }\n-keep class com.google.android.ump.** { *; }\n-dontwarn com.google.android.gms.ads.**"
           }
         }
       ]
